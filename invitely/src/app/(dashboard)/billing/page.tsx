@@ -59,7 +59,7 @@ const PLANS = [
 ];
 
 export default async function BillingPage() {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) redirect("/sign-in");
 
   const sub = await prisma.subscription.findUnique({ where: { userId } });
