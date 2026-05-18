@@ -31,7 +31,7 @@ export async function GET(
       prisma.guest.findMany({
         where: { eventId: event.id },
         include: { rsvp: true, checkin: true },
-        orderBy: { createdAt: "asc" },
+        orderBy: { id: "asc" },
       }),
     ]);
 
