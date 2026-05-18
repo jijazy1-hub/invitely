@@ -1,25 +1,12 @@
 #!/bin/bash
-cat > /workspaces/invitely/invitely/src/middleware.ts << 'EOF'
-import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+BASE="/workspaces/invitely/invitely/src/app/api"
 
-const isProtectedRoute = createRouteMatcher([
-  "/dashboard(.*)",
-  "/events(.*)",
-  "/guests(.*)",
-  "/templates(.*)",
-  "/billing(.*)",
-  "/settings(.*)",
-  "/api/events(.*)",
-]);
+# Add force-dynamic to every API route that doesn't have it
+for f in $(find $BASE -name "route.ts" -o -name "route.tsx"); do
+  if ! grep -q "force-dynamic" "$f"; then
+    echo 'export const dynamic = "force-dynamic";' | cat - "$f" > /tmp/tmp_route && mv /tmp/tmp_route "$f"
+    echo "Fixed: $f"
+  fi
+done
 
-export default clerkMiddleware(async (auth, req) => {
-  if (isProtectedRoute(req)) {
-    await auth.protect();
-  }
-});
-
-export const config = {
-  matcher: ["/((?!.*\\..*|_next).*)", "/", "/(api|trpc)(.*)"],
-};
-EOF
-echo "Done"
+echo "All done!"
