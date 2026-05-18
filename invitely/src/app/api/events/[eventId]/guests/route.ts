@@ -13,7 +13,7 @@ async function verifyOwner(userId: string, eventId: string) {
 
 // GET /api/events/[eventId]/guests
 export async function GET(_req: Request, { params }: Ctx) {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const event = await verifyOwner(userId, params.eventId);
@@ -33,7 +33,7 @@ export async function GET(_req: Request, { params }: Ctx) {
 
 // POST /api/events/[eventId]/guests — add single guest
 export async function POST(req: Request, { params }: Ctx) {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const event = await verifyOwner(userId, params.eventId);

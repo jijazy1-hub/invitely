@@ -63,7 +63,7 @@ async function parseFileBuffer(buffer: Buffer, filename: string): Promise<GuestR
 
 // POST /api/events/[eventId]/guests/import
 export async function POST(req: Request, { params }: Ctx) {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const event = await verifyOwner(userId, params.eventId);

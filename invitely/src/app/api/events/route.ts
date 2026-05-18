@@ -25,7 +25,7 @@ const createEventSchema = z.object({
 
 // GET /api/events — list user's events
 export async function GET() {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const events = await prisma.event.findMany({
@@ -39,7 +39,7 @@ export async function GET() {
 
 // POST /api/events — create event
 export async function POST(req: Request) {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   // Ensure user record exists (should be created by Clerk webhook, but safety net)

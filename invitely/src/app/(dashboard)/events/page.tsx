@@ -8,7 +8,7 @@ import { formatShortDate } from "@/lib/utils";
 import { EVENT_TYPE_ICONS, EVENT_TYPE_LABELS } from "@/types";
 
 export default async function EventsPage() {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) redirect("/sign-in");
 
   const events = await prisma.event.findMany({

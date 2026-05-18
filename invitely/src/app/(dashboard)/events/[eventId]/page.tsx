@@ -14,7 +14,7 @@ import { PublishToggle } from "@/components/events/publish-toggle";
 type Ctx = { params: { eventId: string } };
 
 export default async function EventDetailPage({ params }: Ctx) {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) redirect("/sign-in");
 
   const event = await prisma.event.findFirst({

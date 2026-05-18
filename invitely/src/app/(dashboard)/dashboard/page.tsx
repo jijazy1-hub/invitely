@@ -26,7 +26,7 @@ async function getDashboardData(userId: string) {
 }
 
 export default async function DashboardPage() {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) redirect("/sign-in");
 
   const { events, totalGuests, totalConfirmed, totalCheckins } = await getDashboardData(userId);

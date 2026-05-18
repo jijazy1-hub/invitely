@@ -6,7 +6,7 @@ import prisma from "@/lib/prisma";
 type Ctx = { params: { eventId: string; guestId: string } };
 
 export async function DELETE(_req: Request, { params }: Ctx) {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   // Verify ownership

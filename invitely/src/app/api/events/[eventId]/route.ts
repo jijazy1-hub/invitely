@@ -7,7 +7,7 @@ type Ctx = { params: { eventId: string } };
 
 // GET /api/events/[eventId]
 export async function GET(_req: Request, { params }: Ctx) {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const event = await prisma.event.findFirst({
@@ -21,7 +21,7 @@ export async function GET(_req: Request, { params }: Ctx) {
 
 // PATCH /api/events/[eventId]
 export async function PATCH(req: Request, { params }: Ctx) {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const event = await prisma.event.findFirst({ where: { id: params.eventId, userId } });
@@ -56,7 +56,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
 
 // DELETE /api/events/[eventId]
 export async function DELETE(_req: Request, { params }: Ctx) {
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const event = await prisma.event.findFirst({ where: { id: params.eventId, userId } });
