@@ -30,7 +30,7 @@ export async function GET(
       prisma.checkin.count({ where: { eventId: event.id } }),
       prisma.guest.findMany({
         where: { eventId: event.id },
-        include: { rsvp: true, checkIns: true },
+        include: { rsvp: true, checkin: true },
         orderBy: { createdAt: "asc" },
       }),
     ]);
