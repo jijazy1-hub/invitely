@@ -22,7 +22,7 @@ export async function GET(
     // Aggregate guest + RSVP stats
     const [totalGuests, rsvpStats, checkinCount, guests] = await Promise.all([
       prisma.guest.count({ where: { eventId: event.id } }),
-      prisma.rSVP.groupBy({
+      prisma.rsvp.groupBy({
         by: ["status"],
         where: { guest: { eventId: event.id } },
         _count: { status: true },

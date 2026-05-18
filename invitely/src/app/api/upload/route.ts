@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
 
     // Optionally persist the photo URL back to the RSVP if guestId provided
     if (guestId) {
-      await prisma.rSVP.updateMany({
+      await prisma.rsvp.updateMany({
         where: { guest: { id: guestId } },
         data: { photoUrl: result.url },
       });
