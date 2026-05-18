@@ -8,18 +8,15 @@ export async function GET(_req: NextRequest) {
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
-
     const guests = await prisma.guest.findMany({
-      where: { event: { userId: user.id } },
+      where: { event: { userId } },
       include: {
         event: { select: { id: true, name: true, slug: true } },
         rsvp: { select: { status: true } },
         checkin: { select: { id: true } },
       },
-      orderBy: { id: "desc" },
-      take: 500, // safety cap
+      orderBy: { importedAt: "desc" },
+      take: 500,
     });
 
     const rows = guests.map((g) => ({
