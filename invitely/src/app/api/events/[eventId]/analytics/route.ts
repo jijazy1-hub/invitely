@@ -27,7 +27,7 @@ export async function GET(
         where: { guest: { eventId: event.id } },
         _count: { status: true },
       }),
-      prisma.checkIn.count({ where: { eventId: event.id } }),
+      prisma.checkin.count({ where: { eventId: event.id } }),
       prisma.guest.findMany({
         where: { eventId: event.id },
         include: { rsvp: true, checkIns: true },
