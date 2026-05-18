@@ -1,3 +1,7 @@
+#!/bin/bash
+
+# Fix checkin route - wrap in try/catch for static analysis
+cat > /workspaces/invitely/invitely/src/app/api/checkin/route.ts << 'EOF'
 // src/app/api/checkin/route.ts
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
@@ -77,3 +81,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ status: "invalid", message: "Server error." });
   }
 }
+EOF
+echo "Done"
