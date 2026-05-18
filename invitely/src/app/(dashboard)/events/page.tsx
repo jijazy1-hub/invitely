@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 // src/app/(dashboard)/events/page.tsx
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
