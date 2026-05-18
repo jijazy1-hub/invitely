@@ -30,7 +30,7 @@ export async function GET(_req: NextRequest) {
       eventName: g.event.name,
       eventSlug: g.event.slug,
       rsvpStatus: g.rsvp?.status ?? null,
-      checkedIn: g.checkin.length > 0,
+      checkedIn: g.checkin !== null,
       createdAt: g.createdAt.toISOString(),
     }));
 

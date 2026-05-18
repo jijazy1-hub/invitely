@@ -53,8 +53,8 @@ export async function GET(
     }
 
     for (const guest of guests) {
-      if (!guest.rsvp || !guest.rsvp.createdAt) continue;
-      const key = guest.rsvp.createdAt.toISOString().slice(0, 10);
+      if (!guest.rsvp || !guest.rsvp?.rsvpedAt) continue;
+      const key = guest.rsvp.rsvpedAt.toISOString().slice(0, 10);
       if (!(key in rsvpsByDay)) continue;
       if (guest.rsvp.status === "CONFIRMED") rsvpsByDay[key].confirmed++;
       if (guest.rsvp.status === "DECLINED") rsvpsByDay[key].declined++;
