@@ -12,7 +12,7 @@ export async function GET(_req: NextRequest) {
       ? {
           OR: [
             { isPublic: true },
-            { user: { clerkId: userId } },
+            { user: { id: userId } },
           ],
         }
       : { isPublic: true };
