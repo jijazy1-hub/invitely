@@ -9,6 +9,8 @@ import { Webhook } from "svix";
 import { headers } from "next/headers";
 import prisma from "@/lib/prisma";
 
+export const dynamic = "force-dynamic";
+
 type ClerkUserEvent = {
   type: "user.created" | "user.updated" | "user.deleted";
   data: {

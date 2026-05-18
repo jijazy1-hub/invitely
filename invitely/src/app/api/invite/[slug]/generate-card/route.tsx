@@ -3,6 +3,8 @@
 import React from "react";
 import { ImageResponse } from "next/og";
 import prisma from "@/lib/prisma";
+
+export const dynamic = "force-dynamic";
 import QRCode from "qrcode";
 import fs from "fs";
 import path from "path";

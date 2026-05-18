@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { uploadGuestPhoto } from "@/lib/cloudinary";
 import prisma from "@/lib/prisma";
 
+export const dynamic = "force-dynamic";
+
 const MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
 
 export async function POST(req: NextRequest) {

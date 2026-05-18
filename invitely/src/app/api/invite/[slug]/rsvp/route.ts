@@ -2,6 +2,8 @@
 // Migrated from /api/rsvp (Airtable) → Prisma + PostgreSQL
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+
+export const dynamic = "force-dynamic";
 import { normalizePhone } from "@/utils/phone";
 import { generateUniqueCode } from "@/utils/codes";
 

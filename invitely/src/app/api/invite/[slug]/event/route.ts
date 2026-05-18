@@ -2,6 +2,8 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 
+export const dynamic = "force-dynamic";
+
 type Ctx = { params: { slug: string } };
 
 export async function GET(_req: Request, { params }: Ctx) {

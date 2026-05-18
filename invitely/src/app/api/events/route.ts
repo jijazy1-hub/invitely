@@ -2,6 +2,8 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
+
+export const dynamic = "force-dynamic";
 import { generateSlug, randomSuffix } from "@/utils/codes";
 import { z } from "zod";
 
