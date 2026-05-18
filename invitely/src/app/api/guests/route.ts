@@ -31,7 +31,7 @@ export async function GET(_req: NextRequest) {
       eventSlug: g.event.slug,
       rsvpStatus: g.rsvp?.status ?? null,
       checkedIn: g.checkin !== null,
-      createdAt: g.createdAt.toISOString(),
+      importedAt: g.importedAt.toISOString(),
     }));
 
     return NextResponse.json({ guests: rows });
