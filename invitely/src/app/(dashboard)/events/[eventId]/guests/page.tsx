@@ -1,4 +1,3 @@
-export const dynamic = "force-dynamic";
 // src/app/(dashboard)/events/[eventId]/guests/page.tsx
 "use client";
 
