@@ -1,3 +1,5 @@
+#!/bin/bash
+cat > /workspaces/invitely/invitely/src/middleware.ts << 'EOF'
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 
 const isProtectedRoute = createRouteMatcher([
@@ -19,3 +21,5 @@ export default clerkMiddleware(async (auth, req) => {
 export const config = {
   matcher: ["/((?!.*\\..*|_next).*)", "/", "/(api|trpc)(.*)"],
 };
+EOF
+echo "Done"
