@@ -30,7 +30,7 @@ export async function GET() {
 
   const events = await prisma.event.findMany({
     where: { userId },
-    orderBy: { createdAt: "desc" },
+    orderBy: { id: "desc" },
     include: { _count: { select: { guests: true } } },
   });
 

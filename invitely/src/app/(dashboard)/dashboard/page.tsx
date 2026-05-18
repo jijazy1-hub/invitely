@@ -11,7 +11,7 @@ async function getDashboardData(userId: string) {
   const [events, totalGuests, totalConfirmed, totalCheckins] = await Promise.all([
     prisma.event.findMany({
       where: { userId },
-      orderBy: { createdAt: "desc" },
+      orderBy: { id: "desc" },
       take: 5,
       include: {
         _count: { select: { guests: true } },

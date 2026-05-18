@@ -16,9 +16,9 @@ export async function GET(_req: NextRequest) {
       include: {
         event: { select: { id: true, name: true, slug: true } },
         rsvp: { select: { status: true } },
-        checkIns: { select: { id: true } },
+        checkin: { select: { id: true } },
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: { id: "desc" },
       take: 500, // safety cap
     });
 

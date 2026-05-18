@@ -13,7 +13,7 @@ export default async function EventsPage() {
 
   const events = await prisma.event.findMany({
     where: { userId },
-    orderBy: { createdAt: "desc" },
+    orderBy: { id: "desc" },
     include: {
       _count: { select: { guests: true } },
     },
