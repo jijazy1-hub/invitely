@@ -1,101 +1,70 @@
-"use client";
-export const dynamic = "force-dynamic";
-// src/app/(dashboard)/events/[eventId]/page.tsx
+"use server";
 import { auth } from "@clerk/nextjs/server";
-import { redirect, notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 import Link from "next/link";
-import {
-  ArrowLeft, Users, QrCode, ExternalLink, Settings,
-  BarChart2, Copy, Globe, EyeOff
-} from "lucide-react";
+import { Globe, ExternalLink, QrCode, Users, BarChart2 } from "lucide-react";
 import prisma from "@/lib/prisma";
 import { formatDate } from "@/lib/utils";
-import { EVENT_TYPE_ICONS, EVENT_TYPE_LABELS } from "@/types";
-import { PublishToggle } from "@/components/events/publish-toggle";
+import PublishToggle from "@/components/events/publish-toggle";
+import CopyButton from "@/components/events/copy-button";
 
-type Ctx = { params: { eventId: string } };
+export const dynamic = "force-dynamic";
 
-export default async function EventDetailPage({ params }: Ctx) {
+export default async function EventPage({ params }: { params: { eventId: string } }) {
   const { userId } = await auth();
   if (!userId) redirect("/sign-in");
 
   const event = await prisma.event.findFirst({
     where: { id: params.eventId, userId },
-    include: { _count: { select: { guests: true, checkins: true } } },
+    include: {
+      _count: { select: { guests: true } },
+    },
   });
-  if (!event) notFound();
 
-  const [confirmed, declined, pending] = await Promise.all([
-    prisma.rsvp.count({ where: { status: "CONFIRMED", guest: { eventId: event.id } } }),
-    prisma.rsvp.count({ where: { status: "DECLINED", guest: { eventId: event.id } } }),
-    prisma.rsvp.count({ where: { status: "PENDING", guest: { eventId: event.id } } }),
-  ]);
+  if (!event) redirect("/events");
 
-  const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL}/invite/${event.slug}`;
-  const checkinUrl = `${process.env.NEXT_PUBLIC_APP_URL}/checkin/${event.slug}`;
+  const confirmed = await prisma.rsvp.count({
+    where: { guest: { eventId: event.id }, status: "CONFIRMED" },
+  });
+
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://invitely-nine.vercel.app";
+  const inviteUrl = `${baseUrl}/invite/${event.slug}`;
+  const checkinUrl = `${baseUrl}/checkin/${event.slug}`;
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="p-6 max-w-4xl mx-auto space-y-8">
       {/* Header */}
-      <div className="flex items-start gap-4">
-        <Link href="/events" className="mt-1 text-stone-400 hover:text-stone-700">
-          <ArrowLeft className="h-5 w-5" />
-        </Link>
-        <div className="flex-1">
-          <div className="flex items-center gap-3 mb-1">
-            <span className="text-2xl">{EVENT_TYPE_ICONS[event.eventType]}</span>
-            <h1 className="text-2xl font-bold text-stone-900">{event.name}</h1>
-          </div>
-          <p className="text-sm text-stone-500">
-            {EVENT_TYPE_LABELS[event.eventType]} · {formatDate(event.date)}
-            {event.time ? ` at ${event.time}` : ""}
-          </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-stone-900">{event.name}</h1>
+          <p className="text-stone-500 text-sm mt-1">{event.eventType} · {event.isPublished ? "Published" : "Draft"}</p>
         </div>
         <PublishToggle eventId={event.id} isPublished={event.isPublished} />
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        {[
-          { label: "Total Guests", value: event._count.guests, bg: "bg-stone-50" },
-          { label: "Confirmed", value: confirmed, bg: "bg-emerald-50" },
-          { label: "Declined", value: declined, bg: "bg-red-50" },
-          { label: "Checked In", value: event._count.checkins, bg: "bg-blue-50" },
-        ].map(({ label, value, bg }) => (
-          <div key={label} className={`rounded-xl ${bg} p-4 text-center`}>
-            <p className="text-2xl font-bold text-stone-900">{value}</p>
-            <p className="text-xs text-stone-500 mt-1">{label}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Links */}
+      {/* URLs */}
       <div className="rounded-xl border border-stone-200 bg-white p-6 space-y-4">
-        <h2 className="font-semibold text-stone-900">Event Links</h2>
-
+        <h2 className="font-semibold text-stone-900">Share Links</h2>
         <div className="space-y-3">
           <div className="flex items-center gap-3 rounded-lg bg-stone-50 border border-stone-200 px-4 py-3">
             <Globe className="h-4 w-4 text-stone-500 shrink-0" />
             <span className="text-sm font-mono text-stone-700 flex-1 truncate">{inviteUrl}</span>
-            <div className="flex gap-2">
-              <button
-                onClick={() => {}}
-                className="text-xs font-medium text-[#0A2810] hover:underline"
-              >
-                Copy
-              </button>
+            <div className="flex gap-2 items-center">
+              <CopyButton text={inviteUrl} />
               <Link href={`/invite/${event.slug}`} target="_blank">
                 <ExternalLink className="h-4 w-4 text-stone-400 hover:text-stone-700" />
               </Link>
             </div>
           </div>
-
           <div className="flex items-center gap-3 rounded-lg bg-stone-50 border border-stone-200 px-4 py-3">
             <QrCode className="h-4 w-4 text-stone-500 shrink-0" />
             <span className="text-sm font-mono text-stone-700 flex-1 truncate">{checkinUrl}</span>
-            <Link href={`/checkin/${event.slug}`} target="_blank">
-              <ExternalLink className="h-4 w-4 text-stone-400 hover:text-stone-700" />
-            </Link>
+            <div className="flex gap-2 items-center">
+              <CopyButton text={checkinUrl} />
+              <Link href={`/checkin/${event.slug}`} target="_blank">
+                <ExternalLink className="h-4 w-4 text-stone-400 hover:text-stone-700" />
+              </Link>
+            </div>
           </div>
         </div>
       </div>
@@ -125,9 +94,9 @@ export default async function EventDetailPage({ params }: Ctx) {
         <h2 className="font-semibold text-stone-900">Event Details</h2>
         <dl className="grid grid-cols-2 gap-4 text-sm">
           {[
-            { label: "Date", value: formatDate(event.date) },
+            { label: "Date", value: event.date ? formatDate(event.date) : "—" },
             { label: "Time", value: event.time ?? "—" },
-            { label: "Venue", value: event.venue },
+            { label: "Venue", value: event.venue ?? "—" },
             { label: "Dress Code", value: event.dressCode ?? "—" },
             { label: "Organizer", value: event.organizerName ?? "—" },
             { label: "Slug", value: event.slug },
