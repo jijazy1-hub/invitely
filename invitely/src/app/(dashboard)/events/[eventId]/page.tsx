@@ -1,3 +1,4 @@
+"use client";
 export const dynamic = "force-dynamic";
 // src/app/(dashboard)/events/[eventId]/page.tsx
 import { auth } from "@clerk/nextjs/server";
