@@ -1,7 +1,8 @@
 // src/app/layout.tsx
 import type { Metadata } from "next";
-import { ClerkProvider } from "@clerk/nextjs";
+
 import "./globals.css";
+import { ClerkProvider } from "@clerk/nextjs";
 
 export const metadata: Metadata = {
   title: {
