@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Globe, ExternalLink, QrCode, Users, BarChart2 } from "lucide-react";
 import prisma from "@/lib/prisma";
 import { formatDate } from "@/lib/utils";
-import PublishToggle from "@/components/events/publish-toggle";
+import { PublishToggle } from "@/components/events/publish-toggle";
 import CopyButton from "@/components/events/copy-button";
 
 export const dynamic = "force-dynamic";
