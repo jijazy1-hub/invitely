@@ -30,7 +30,18 @@ export default async function DashboardPage() {
   const { userId } = await auth();
   if (!userId) redirect("/sign-in");
 
-  const { events, totalGuests, totalConfirmed, totalCheckins } = await getDashboardData(userId);
+  let events: Awaited<ReturnType<typeof getDashboardData>>["events"] = [];
+  let totalGuests = 0;
+  let totalConfirmed = 0;
+  let totalCheckins = 0;
+  let loadError: string | null = null;
+
+  try {
+    ({ events, totalGuests, totalConfirmed, totalCheckins } = await getDashboardData(userId));
+  } catch (error) {
+    console.error("[DASHBOARD] Failed to load data:", error);
+    loadError = "We couldn't load your event data right now. Your account is signed in, but the dashboard data source is unavailable.";
+  }
 
   const stats = [
     { label: "Total Events", value: events.length, icon: CalendarDays, color: "bg-[#0A2810]", textColor: "text-white" },
@@ -55,6 +66,12 @@ export default async function DashboardPage() {
           New Event
         </Link>
       </div>
+
+      {loadError && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          {loadError}
+        </div>
+      )}
 
       {/* Stats grid */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
