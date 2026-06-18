@@ -3,12 +3,19 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Globe, ExternalLink, QrCode, Users, BarChart2 } from "lucide-react";
+import type { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { formatDate } from "@/lib/utils";
 import { PublishToggle } from "@/components/events/publish-toggle";
 import CopyButton from "@/components/events/copy-button";
 
 export const dynamic = "force-dynamic";
+
+type EventWithGuestCount = Prisma.EventGetPayload<{
+  include: {
+    _count: { select: { guests: true } };
+  };
+}>;
 
 export default async function EventPage({ params }: { params: { eventId: string } }) {
   let userId: string | null = null;
@@ -18,7 +25,7 @@ export default async function EventPage({ params }: { params: { eventId: string 
     console.error("[EVENT] auth failed:", error);
   }
 
-  let event: Awaited<ReturnType<typeof prisma.event.findFirst>> | null = null;
+  let event: EventWithGuestCount | null = null;
   let confirmed = 0;
   let loadError: string | null = null;
 
