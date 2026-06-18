@@ -27,8 +27,12 @@ async function getDashboardData(userId: string) {
 }
 
 export default async function DashboardPage() {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
+  let userId: string | null = null;
+  try {
+    userId = (await auth()).userId ?? null;
+  } catch (error) {
+    console.error("[DASHBOARD] auth failed:", error);
+  }
 
   let events: Awaited<ReturnType<typeof getDashboardData>>["events"] = [];
   let totalGuests = 0;
@@ -37,7 +41,11 @@ export default async function DashboardPage() {
   let loadError: string | null = null;
 
   try {
+    if (!userId) {
+      loadError = "We couldn't identify your account right now. Please refresh or sign in again.";
+    } else {
     ({ events, totalGuests, totalConfirmed, totalCheckins } = await getDashboardData(userId));
+    }
   } catch (error) {
     console.error("[DASHBOARD] Failed to load data:", error);
     loadError = "We couldn't load your event data right now. Your account is signed in, but the dashboard data source is unavailable.";
