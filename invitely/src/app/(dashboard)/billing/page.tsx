@@ -1,7 +1,6 @@
 export const dynamic = "force-dynamic";
 // src/app/(dashboard)/billing/page.tsx
 import { auth } from "@clerk/nextjs/server";
-import { redirect } from "next/navigation";
 import { CheckCircle, Zap } from "lucide-react";
 import prisma from "@/lib/prisma";
 
@@ -60,11 +59,29 @@ const PLANS = [
 ];
 
 export default async function BillingPage() {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
+  let userId: string | null = null;
+  try {
+    userId = (await auth()).userId ?? null;
+  } catch (error) {
+    console.error("[BILLING] auth failed:", error);
+  }
 
-  const sub = await prisma.subscription.findUnique({ where: { userId } });
-  const currentPlan = sub?.plan ?? "FREE";
+  let currentPlan = "FREE";
+  let loadError: string | null = null;
+
+  if (!userId) {
+    loadError = "We couldn't identify your account right now. Please refresh or sign in again.";
+  }
+
+  if (userId) {
+    try {
+      const sub = await prisma.subscription.findUnique({ where: { userId } });
+      currentPlan = sub?.plan ?? "FREE";
+    } catch (error) {
+      console.error("[BILLING] Failed to load subscription:", error);
+      loadError = "We couldn't load your billing data right now. Your account is signed in, but the billing data source is unavailable.";
+    }
+  }
 
   return (
     <div className="space-y-8 max-w-4xl">
@@ -74,6 +91,12 @@ export default async function BillingPage() {
           Current plan: <span className="font-semibold text-[#0A2810]">{currentPlan}</span>
         </p>
       </div>
+
+      {loadError && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          {loadError}
+        </div>
+      )}
 
       <div className="grid gap-6 md:grid-cols-3">
         {PLANS.map((plan) => {

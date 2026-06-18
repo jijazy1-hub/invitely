@@ -11,21 +11,56 @@ import CopyButton from "@/components/events/copy-button";
 export const dynamic = "force-dynamic";
 
 export default async function EventPage({ params }: { params: { eventId: string } }) {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
+  let userId: string | null = null;
+  try {
+    userId = (await auth()).userId ?? null;
+  } catch (error) {
+    console.error("[EVENT] auth failed:", error);
+  }
 
-  const event = await prisma.event.findFirst({
-    where: { id: params.eventId, userId },
-    include: {
-      _count: { select: { guests: true } },
-    },
-  });
+  let event: Awaited<ReturnType<typeof prisma.event.findFirst>> | null = null;
+  let confirmed = 0;
+  let loadError: string | null = null;
 
-  if (!event) redirect("/events");
+  if (!userId) {
+    loadError = "We couldn't identify your account right now. Please refresh or sign in again.";
+  }
 
-  const confirmed = await prisma.rsvp.count({
-    where: { guest: { eventId: event.id }, status: "CONFIRMED" },
-  });
+  if (userId) {
+    try {
+      event = await prisma.event.findFirst({
+        where: { id: params.eventId, userId },
+        include: {
+          _count: { select: { guests: true } },
+        },
+      });
+
+      if (event) {
+        confirmed = await prisma.rsvp.count({
+          where: { guest: { eventId: event.id }, status: "CONFIRMED" },
+        });
+      }
+    } catch (error) {
+      console.error("[EVENT] Failed to load event details:", error);
+      loadError = "We couldn't load this event right now. The event data source is unavailable or incomplete.";
+    }
+  }
+
+  if (!event && !loadError) redirect("/events");
+
+  if (loadError || !event) {
+    return (
+      <div className="p-6 max-w-3xl mx-auto space-y-6">
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-900">
+          <h1 className="text-2xl font-bold mb-2">Event temporarily unavailable</h1>
+          <p className="text-sm">{loadError ?? "This event could not be loaded right now."}</p>
+        </div>
+        <Link href="/events" className="inline-flex items-center gap-2 rounded-lg bg-[#0A2810] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#0f3515] transition-colors">
+          Back to events
+        </Link>
+      </div>
+    );
+  }
 
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://invitely-nine.vercel.app";
   const inviteUrl = `${baseUrl}/invite/${event.slug}`;
