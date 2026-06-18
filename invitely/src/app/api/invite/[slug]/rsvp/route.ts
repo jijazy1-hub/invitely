@@ -25,7 +25,7 @@ export async function POST(req: Request, { params }: Ctx) {
     }
 
     // Find event
-    const event = await prisma.event.findUnique({
+    const event = await prisma.event.findFirst({
       where: { slug: params.slug, isPublished: true },
       select: { id: true },
     });

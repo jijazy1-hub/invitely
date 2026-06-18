@@ -1,7 +1,3 @@
-// prisma/schema.prisma
-// Multi-Event Invitation SaaS Platform
-// Database: PostgreSQL (Supabase)
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -11,73 +7,49 @@ datasource db {
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
-// ─────────────────────────────────────────────────────────
-// USERS
-// Synced from Clerk via webhook (POST /api/webhooks/clerk)
-// ─────────────────────────────────────────────────────────
-model User {
-  id        String   @id                // Clerk user ID
-  email     String   @unique
-  name      String?
-  imageUrl  String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 
-  events        Event[]
-  subscriptions Subscription[]
+model User {
+  id           String        @id
+  email        String        @unique
+  name         String?
+  imageUrl     String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  events       Event[]
+  subscription Subscription?
 
   @@map("users")
 }
 
-// ─────────────────────────────────────────────────────────
-// EVENTS
-// Each user can create multiple events of any type
-// ─────────────────────────────────────────────────────────
-model Event {
-  id          String    @id @default(cuid())
-  userId      String
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+model Subscription {
+  id                    String            @id @default(cuid())
+  userId                String            @unique
+  user                  User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan                  SubscriptionPlan  @default(FREE)
+  status                SubStatus         @default(ACTIVE)
+  stripeCustomerId      String?
+  stripeSubscriptionId  String?
+  stripePriceId         String?
+  currentPeriodStart    DateTime?
+  currentPeriodEnd      DateTime?
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
 
-  name        String
-  slug        String    @unique          // URL-safe, e.g. "gabby-esther-wedding"
-  eventType   EventType @default(WEDDING)
-  date        DateTime
-  time        String?                   // e.g. "2:00 PM"
-  venue       String
-  description String?   @db.Text
-  dressCode   String?
-  rsvpDeadline DateTime?
-  
-  // Organizer
-  organizerName  String?
-  organizerPhone String?
-  organizerEmail String?
+  @@map("subscriptions")
+}
 
-  // Branding
-  logoUrl     String?
-  coverUrl    String?
-  primaryColor   String  @default("#0A2810")
-  secondaryColor String  @default("#B8860B")
-  accentColor    String  @default("#F8F4E3")
+enum SubscriptionPlan {
+  FREE
+  BASIC
+  PREMIUM
+}
 
-  // Template
-  templateId  String?
-  template    Template? @relation(fields: [templateId], references: [id])
-
-  // Settings
-  isPublished    Boolean  @default(false)
-  requirePhoto   Boolean  @default(true)
-  maxGuests      Int?
-
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  guests    Guest[]
-  checkins  Checkin[]
-
-  @@index([userId])
-  @@index([slug])
-  @@map("events")
+enum SubStatus {
+  ACTIVE
+  CANCELLED
+  PAST_DUE
+  TRIALING
 }
 
 enum EventType {
@@ -93,28 +65,66 @@ enum EventType {
   OTHER
 }
 
-// ─────────────────────────────────────────────────────────
-// GUESTS
-// Guests belong to a specific event
-// ─────────────────────────────────────────────────────────
+model Event {
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name           String
+  slug           String    @unique
+  eventType      EventType @default(WEDDING)
+  date           DateTime
+  time           String?
+  venue          String
+  description    String?   @db.Text
+  dressCode      String?
+  rsvpDeadline   DateTime?
+
+  organizerName  String?
+  organizerPhone String?
+  organizerEmail String?
+
+  logoUrl        String?
+  coverUrl       String?
+  primaryColor   String    @default("#0A2810")
+  secondaryColor String    @default("#B8860B")
+  accentColor    String    @default("#F8F4E3")
+
+  templateId     String?
+  template       Template? @relation(fields: [templateId], references: [id])
+
+  isPublished    Boolean   @default(false)
+  requirePhoto   Boolean   @default(true)
+  maxGuests      Int?
+
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  guests         Guest[]
+  checkins       Checkin[]
+
+  @@index([userId])
+  @@index([slug])
+  @@map("events")
+}
+
 model Guest {
-  id      String  @id @default(cuid())
-  eventId String
-  event   Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  id          String       @id @default(cuid())
+  eventId     String
+  event       Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
-  name    String
-  phone   String                       // Normalized (0XXXXXXXXXX format)
-  email   String?
+  name        String
+  phone       String
+  email       String?
 
-  // Status
-  invited    Boolean   @default(true)
-  importedAt DateTime  @default(now())
+  invited     Boolean      @default(true)
+  importedAt  DateTime     @default(now())
   importedVia ImportSource @default(MANUAL)
 
-  rsvp     Rsvp?
-  checkin  Checkin?
+  rsvp        Rsvp?
+  checkin     Checkin?
 
-  @@unique([eventId, phone])           // No duplicate phones per event
+  @@unique([eventId, phone])
   @@index([eventId])
   @@index([phone])
   @@map("guests")
@@ -125,36 +135,29 @@ enum ImportSource {
   BULK_TEXT
   CSV
   EXCEL
+  TEXT
   DOCX
   TXT
 }
 
-// ─────────────────────────────────────────────────────────
-// RSVPs
-// One RSVP per guest (one-to-one with Guest)
-// ─────────────────────────────────────────────────────────
 model Rsvp {
-  id      String @id @default(cuid())
-  guestId String @unique
-  guest   Guest  @relation(fields: [guestId], references: [id], onDelete: Cascade)
+  id         String      @id @default(cuid())
+  guestId    String      @unique
+  guest      Guest       @relation(fields: [guestId], references: [id], onDelete: Cascade)
 
-  status      RsvpStatus @default(PENDING)
-  attendance  Boolean?                 // true = yes, false = no
+  status     RsvpStatus  @default(PENDING)
+  attendance Boolean?
+  uniqueCode String?     @unique
+  seatNumber Int?
+  cardUrl    String?
 
-  // Generated on RSVP confirmation
-  uniqueCode  String?   @unique        // e.g. "INV-A3X7P2"
-  seatNumber  Int?
-  cardUrl     String?                  // Cloudinary URL of generated card
+  email      String?
+  photoUrl   String?
+  guestPhoto String?     @db.Text
 
-  // Guest provided info
-  email       String?
-  photoUrl    String?                  // Cloudinary URL of guest photo
-  guestPhoto  String?   @db.Text       // Base64 for card generation (temporary)
-
-  // Metadata
-  rsvpedAt    DateTime?
-  updatedAt   DateTime  @updatedAt
-  createdAt   DateTime  @default(now())
+  rsvpedAt   DateTime?
+  updatedAt  DateTime    @updatedAt
+  createdAt  DateTime    @default(now())
 
   @@index([uniqueCode])
   @@map("rsvps")
@@ -166,84 +169,34 @@ enum RsvpStatus {
   DECLINED
 }
 
-// ─────────────────────────────────────────────────────────
-// CHECKINS
-// QR scan check-in at the event venue
-// ─────────────────────────────────────────────────────────
 model Checkin {
-  id        String   @id @default(cuid())
-  eventId   String
-  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  guestId   String   @unique
-  guest     Guest    @relation(fields: [guestId], references: [id], onDelete: Cascade)
+  id          String   @id @default(cuid())
+  eventId     String
+  event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  guestId     String   @unique
+  guest       Guest    @relation(fields: [guestId], references: [id], onDelete: Cascade)
 
   checkedInAt DateTime @default(now())
-  checkedInBy String?                  // Staff member / device ID
+  checkedInBy String?
   notes       String?
 
   @@index([eventId])
   @@map("checkins")
 }
 
-// ─────────────────────────────────────────────────────────
-// TEMPLATES
-// Reusable IV card templates
-// ─────────────────────────────────────────────────────────
 model Template {
-  id          String        @id @default(cuid())
-  name        String
-  description String?
-  category    EventType     @default(WEDDING)
+  id           String    @id @default(cuid())
+  name         String
+  description  String?
+  category     EventType @default(WEDDING)
   thumbnailUrl String?
-  isPublic    Boolean       @default(true)   // System templates visible to all
-  createdBy   String?                        // User ID if custom template
+  isPublic     Boolean   @default(true)
+  createdBy    String?
+  config       Json      @default("{}")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
-  // Design config (JSON)
-  config      Json          @default("{}")
-
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-
-  events Event[]
+  events       Event[]
 
   @@map("templates")
-}
-
-// ─────────────────────────────────────────────────────────
-// SUBSCRIPTIONS
-// Plan management per user
-// ─────────────────────────────────────────────────────────
-model Subscription {
-  id        String           @id @default(cuid())
-  userId    String
-  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  plan      SubscriptionPlan @default(FREE)
-  status    SubStatus        @default(ACTIVE)
-
-  // Billing
-  stripeCustomerId       String?
-  stripeSubscriptionId   String?
-  stripePriceId          String?
-  currentPeriodStart     DateTime?
-  currentPeriodEnd       DateTime?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([userId])
-  @@map("subscriptions")
-}
-
-enum SubscriptionPlan {
-  FREE      // 1 event, 50 guests
-  BASIC     // 5 events, 500 guests, custom branding
-  PREMIUM   // Unlimited, all features
-}
-
-enum SubStatus {
-  ACTIVE
-  CANCELLED
-  PAST_DUE
-  TRIALING
 }

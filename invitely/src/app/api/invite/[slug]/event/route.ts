@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 type Ctx = { params: { slug: string } };
 
 export async function GET(_req: Request, { params }: Ctx) {
-  const event = await prisma.event.findUnique({
+  const event = await prisma.event.findFirst({
     where: { slug: params.slug, isPublished: true },
     select: {
       id: true, name: true, slug: true, eventType: true,
