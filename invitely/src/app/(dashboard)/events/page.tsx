@@ -10,29 +10,51 @@ import { formatShortDate } from "@/lib/utils";
 import { EVENT_TYPE_ICONS, EVENT_TYPE_LABELS } from "@/types";
 
 export default async function EventsPage() {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
+  let userId: string | null = null;
+  try {
+    userId = (await auth()).userId ?? null;
+  } catch (error) {
+    console.error("[EVENTS] auth failed:", error);
+  }
 
-  const events = await prisma.event.findMany({
-    where: { userId },
-    orderBy: { id: "desc" },
-    include: {
-      _count: { select: { guests: true } },
-    },
-  });
+  let loadError: string | null = null;
+  const events = [];
+  const statsMap: Record<string, { confirmed: number; declined: number; pending: number }> = {};
 
-  // RSVP stats per event
-  const rsvpStats = await Promise.all(
-    events.map(async (e) => {
-      const [confirmed, declined, pending] = await Promise.all([
-        prisma.rsvp.count({ where: { status: "CONFIRMED", guest: { eventId: e.id } } }),
-        prisma.rsvp.count({ where: { status: "DECLINED", guest: { eventId: e.id } } }),
-        prisma.rsvp.count({ where: { status: "PENDING", guest: { eventId: e.id } } }),
-      ]);
-      return { eventId: e.id, confirmed, declined, pending };
-    })
-  );
-  const statsMap = Object.fromEntries(rsvpStats.map((s) => [s.eventId, s]));
+  if (!userId) {
+    loadError = "We couldn't identify your account right now. Please refresh or sign in again.";
+  } else {
+    try {
+      const loadedEvents = await prisma.event.findMany({
+        where: { userId },
+        orderBy: { id: "desc" },
+        include: {
+          _count: { select: { guests: true } },
+        },
+      });
+
+      // RSVP stats per event
+      const rsvpStats = await Promise.all(
+        loadedEvents.map(async (e) => {
+          const [confirmed, declined, pending] = await Promise.all([
+            prisma.rsvp.count({ where: { status: "CONFIRMED", guest: { eventId: e.id } } }),
+            prisma.rsvp.count({ where: { status: "DECLINED", guest: { eventId: e.id } } }),
+            prisma.rsvp.count({ where: { status: "PENDING", guest: { eventId: e.id } } }),
+          ]);
+          return { eventId: e.id, confirmed, declined, pending };
+        })
+      );
+
+      for (const stat of rsvpStats) {
+        statsMap[stat.eventId] = stat;
+      }
+
+      events.push(...loadedEvents);
+    } catch (error) {
+      console.error("[EVENTS] Failed to load events:", error);
+      loadError = "We couldn't load your events right now. The event data source is unavailable or missing required records.";
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -49,6 +71,12 @@ export default async function EventsPage() {
           New Event
         </Link>
       </div>
+
+      {loadError && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          {loadError}
+        </div>
+      )}
 
       {events.length === 0 ? (
         <div className="rounded-xl border-2 border-dashed border-stone-200 bg-white py-20 text-center">
