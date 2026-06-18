@@ -8,7 +8,7 @@ import {
   LayoutDashboard, CalendarDays, Users, Palette,
   BarChart2, CreditCard, Settings, Menu, X, Zap
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -24,6 +24,11 @@ const navItems = [
 export function Sidebar() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const NavContent = () => (
     <nav className="flex h-full flex-col">
@@ -61,7 +66,7 @@ export function Sidebar() {
       {/* User button */}
       <div className="border-t border-stone-200 px-4 py-4">
         <div className="flex items-center gap-3">
-          <UserButton afterSignOutUrl="/sign-in" />
+          {mounted ? <UserButton afterSignOutUrl="/sign-in" /> : <div className="h-8 w-8 rounded-full bg-stone-200" />}
           <span className="text-sm text-stone-500">Account</span>
         </div>
       </div>
