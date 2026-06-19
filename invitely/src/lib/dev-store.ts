@@ -1,6 +1,7 @@
 import { promises as fs } from "fs";
 import os from "os";
 import path from "path";
+import type { EventType } from "@prisma/client";
 import { generateSlug, randomSuffix } from "../utils/codes";
 
 type DevEvent = {
@@ -8,7 +9,7 @@ type DevEvent = {
   userId: string;
   name: string;
   slug: string;
-  eventType: string;
+  eventType: EventType;
   date: string;
   time: string | null;
   venue: string;
@@ -68,7 +69,7 @@ export async function getDevEvent(userId: string, eventId: string): Promise<DevE
 
 export async function createDevEvent(userId: string, data: {
   name: string;
-  eventType: string;
+  eventType: EventType;
   date: string;
   time?: string | null;
   venue: string;
