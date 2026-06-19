@@ -46,11 +46,19 @@ export default function NewEventPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to create event");
+      const raw = await res.text();
+      const data = raw ? JSON.parse(raw) : {};
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to create event");
+      }
       router.push(`/events/${data.id}/guests`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      if (err instanceof SyntaxError) {
+        setError("The server returned an invalid response while creating the event.");
+      } else {
+        setError(err instanceof Error ? err.message : "Something went wrong");
+      }
     } finally {
       setLoading(false);
     }
