@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
+import { createDevEvent, listDevEvents } from "@/lib/dev-store";
 
 export const dynamic = "force-dynamic";
 import { generateSlug, randomSuffix } from "@/utils/codes";
@@ -40,12 +41,24 @@ export async function GET() {
     return NextResponse.json({ events });
   } catch (error) {
     console.error("[EVENTS][GET] Failed:", error);
+    const userId = (await auth().catch(() => null))?.userId ?? null;
+    if (userId) {
+      const events = await listDevEvents(userId);
+      return NextResponse.json({ events, source: "local-fallback" });
+    }
     return NextResponse.json({ error: "Failed to load events." }, { status: 500 });
   }
 }
 
 // POST /api/events — create event
 export async function POST(req: Request) {
+  const body = await req.json().catch(() => null);
+  const parsed = createEventSchema.safeParse(body);
+
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
+  }
+
   try {
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -56,12 +69,6 @@ export async function POST(req: Request) {
       update: {},
       create: { id: userId, email: `${userId}@placeholder.invitely.app` },
     });
-
-    const body = await req.json();
-    const parsed = createEventSchema.safeParse(body);
-    if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
-    }
 
     const data = parsed.data;
 
@@ -117,9 +124,15 @@ export async function POST(req: Request) {
     return NextResponse.json(event, { status: 201 });
   } catch (error) {
     console.error("[EVENTS][POST] Failed:", error);
-    return NextResponse.json(
-      { error: "Unexpected server error while creating the event." },
-      { status: 500 }
-    );
+    const { userId } = await auth().catch(() => ({ userId: null as string | null }));
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const event = await createDevEvent(userId, parsed.data);
+    return NextResponse.json(event, { status: 201 });
   }
 }

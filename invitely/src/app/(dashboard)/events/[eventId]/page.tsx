@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Globe, ExternalLink, QrCode, Users, BarChart2 } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
+import { getDevEvent } from "@/lib/dev-store";
 import { formatDate } from "@/lib/utils";
 import { PublishToggle } from "@/components/events/publish-toggle";
 import CopyButton from "@/components/events/copy-button";
@@ -49,7 +50,14 @@ export default async function EventPage({ params }: { params: { eventId: string 
       }
     } catch (error) {
       console.error("[EVENT] Failed to load event details:", error);
-      loadError = "We couldn't load this event right now. The event data source is unavailable or incomplete.";
+      const fallback = await getDevEvent(userId, params.eventId);
+      if (fallback) {
+        event = fallback as unknown as EventWithGuestCount;
+        confirmed = 0;
+        loadError = "You're viewing a locally stored event because the database connection is unavailable.";
+      } else {
+        loadError = "We couldn't load this event right now. The event data source is unavailable or incomplete.";
+      }
     }
   }
 

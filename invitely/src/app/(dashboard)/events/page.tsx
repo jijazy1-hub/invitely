@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Plus, Calendar, Users, ExternalLink } from "lucide-react";
 import prisma from "@/lib/prisma";
+import { listDevEvents } from "@/lib/dev-store";
 import { formatShortDate } from "@/lib/utils";
 import { EVENT_TYPE_ICONS, EVENT_TYPE_LABELS } from "@/types";
 
@@ -52,7 +53,13 @@ export default async function EventsPage() {
       events.push(...loadedEvents);
     } catch (error) {
       console.error("[EVENTS] Failed to load events:", error);
-      loadError = "We couldn't load your events right now. The event data source is unavailable or missing required records.";
+      const fallbackEvents = await listDevEvents(userId);
+      if (fallbackEvents.length > 0) {
+        events.push(...fallbackEvents);
+        loadError = "You're viewing locally stored events because the database connection is unavailable.";
+      } else {
+        loadError = "We couldn't load your events right now. The event data source is unavailable or missing required records.";
+      }
     }
   }
 
