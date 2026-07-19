@@ -45,10 +45,11 @@ async function main() {
   ];
 
   for (const t of templates) {
+    const id = t.name.replace(/\s+/g, "-").toLowerCase();
     await prisma.template.upsert({
-      where: { id: t.name.replace(/\s+/g, "-").toLowerCase() },
-      update: t,
-      create: { id: t.name.replace(/\s+/g, "-").toLowerCase(), ...t, config: t.config },
+      where: { id },
+      update: { ...t, config: JSON.stringify(t.config) },
+      create: { id, ...t, config: JSON.stringify(t.config) },
     });
   }
 

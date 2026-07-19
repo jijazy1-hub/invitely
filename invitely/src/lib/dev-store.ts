@@ -1,7 +1,7 @@
 import { promises as fs } from "fs";
 import os from "os";
 import path from "path";
-import type { EventType } from "@prisma/client";
+import type { EventType } from "@/types";
 import { generateSlug, randomSuffix } from "../utils/codes";
 
 type DevEvent = {
@@ -33,8 +33,39 @@ type DevEvent = {
   _count: { guests: number };
 };
 
+type DevGuest = {
+  id: string;
+  userId: string;
+  eventId: string;
+  name: string;
+  phone: string;
+  email: string | null;
+  invited: boolean;
+  importedAt: string;
+  importedVia: string;
+  rsvp?: {
+    status: "PENDING" | "CONFIRMED" | "DECLINED";
+    attendance?: boolean | null;
+    seatNumber?: number | null;
+    uniqueCode?: string | null;
+    cardUrl?: string | null;
+    email?: string | null;
+    photoUrl?: string | null;
+    guestPhoto?: string | null;
+    rsvpedAt?: string | null;
+    createdAt?: string | null;
+    updatedAt?: string | null;
+  } | null;
+  checkin?: {
+    checkedInAt: string;
+    checkedInBy?: string | null;
+    notes?: string | null;
+  } | null;
+};
+
 type DevStore = {
   events: DevEvent[];
+  guests: DevGuest[];
 };
 
 const storePath = path.join(os.tmpdir(), "invitely-dev-store.json");
@@ -43,9 +74,12 @@ async function readStore(): Promise<DevStore> {
   try {
     const raw = await fs.readFile(storePath, "utf8");
     const parsed = JSON.parse(raw) as Partial<DevStore>;
-    return { events: Array.isArray(parsed.events) ? parsed.events : [] };
+    return {
+      events: Array.isArray(parsed.events) ? parsed.events : [],
+      guests: Array.isArray(parsed.guests) ? parsed.guests : [],
+    };
   } catch {
-    return { events: [] };
+    return { events: [], guests: [] };
   }
 }
 
@@ -55,6 +89,15 @@ async function writeStore(store: DevStore): Promise<void> {
 
 function makeId() {
   return `dev_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function syncGuestCount(store: DevStore, eventId: string) {
+  const event = store.events.find((item) => item.id === eventId);
+  if (event) {
+    event._count = {
+      guests: store.guests.filter((guest) => guest.eventId === eventId).length,
+    };
+  }
 }
 
 export async function listDevEvents(userId: string): Promise<DevEvent[]> {
@@ -122,4 +165,91 @@ export async function createDevEvent(userId: string, data: {
   store.events.unshift(event);
   await writeStore(store);
   return event;
+}
+
+export async function listDevGuests(userId: string, eventId: string): Promise<DevGuest[]> {
+  const store = await readStore();
+  return store.guests.filter((guest) => guest.userId === userId && guest.eventId === eventId);
+}
+
+export async function createDevGuest(userId: string, eventId: string, data: {
+  name: string;
+  phone: string;
+  email?: string | null;
+  importedVia?: string;
+}) {
+  const store = await readStore();
+  const now = new Date().toISOString();
+  const guest: DevGuest = {
+    id: makeId(),
+    userId,
+    eventId,
+    name: data.name,
+    phone: data.phone,
+    email: data.email ?? null,
+    invited: true,
+    importedAt: now,
+    importedVia: data.importedVia ?? "MANUAL",
+    rsvp: null,
+    checkin: null,
+  };
+
+  store.guests.unshift(guest);
+  syncGuestCount(store, eventId);
+  await writeStore(store);
+  return guest;
+}
+
+export async function getDevAnalytics(userId: string, eventId: string) {
+  const store = await readStore();
+  const event = store.events.find((item) => item.userId === userId && item.id === eventId);
+  if (!event) return null;
+
+  const guests = store.guests.filter((guest) => guest.userId === userId && guest.eventId === eventId);
+  const confirmed = guests.filter((guest) => guest.rsvp?.status === "CONFIRMED").length;
+  const declined = guests.filter((guest) => guest.rsvp?.status === "DECLINED").length;
+  const pending = guests.length - confirmed - declined;
+  const checkedIn = guests.filter((guest) => guest.checkin).length;
+
+  const now = new Date();
+  const twoWeeksAgo = new Date(now);
+  twoWeeksAgo.setDate(now.getDate() - 13);
+
+  const rsvpsByDay: Record<string, { confirmed: number; declined: number }> = {};
+  for (let i = 0; i < 14; i++) {
+    const day = new Date(twoWeeksAgo);
+    day.setDate(twoWeeksAgo.getDate() + i);
+    const key = day.toISOString().slice(0, 10);
+    rsvpsByDay[key] = { confirmed: 0, declined: 0 };
+  }
+
+  for (const guest of guests) {
+    if (!guest.rsvp?.rsvpedAt) continue;
+    const key = new Date(guest.rsvp.rsvpedAt).toISOString().slice(0, 10);
+    if (!(key in rsvpsByDay)) continue;
+    if (guest.rsvp.status === "CONFIRMED") rsvpsByDay[key].confirmed += 1;
+    if (guest.rsvp.status === "DECLINED") rsvpsByDay[key].declined += 1;
+  }
+
+  const trend = Object.entries(rsvpsByDay).map(([date, counts]) => ({ date, ...counts }));
+  const importSourceCounts: Record<string, number> = {};
+  for (const guest of guests) {
+    const source = guest.importedVia ?? "MANUAL";
+    importSourceCounts[source] = (importSourceCounts[source] ?? 0) + 1;
+  }
+  const importSources = Object.entries(importSourceCounts).map(([source, count]) => ({ source, count }));
+
+  return {
+    summary: {
+      totalGuests: guests.length,
+      confirmed,
+      declined,
+      pending,
+      checkedIn,
+      rsvpRate: guests.length > 0 ? Math.round((confirmed / guests.length) * 100) : 0,
+      checkinRate: confirmed > 0 ? Math.round((checkedIn / confirmed) * 100) : 0,
+    },
+    trend,
+    importSources,
+  };
 }

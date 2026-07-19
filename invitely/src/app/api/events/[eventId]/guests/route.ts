@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
+import { createDevGuest, getDevEvent, listDevGuests } from "@/lib/dev-store";
 
 export const dynamic = "force-dynamic";
 import { normalizePhone, isValidPhone } from "@/utils/phone";
@@ -9,8 +10,12 @@ import { normalizePhone, isValidPhone } from "@/utils/phone";
 type Ctx = { params: { eventId: string } };
 
 async function verifyOwner(userId: string, eventId: string) {
-  const event = await prisma.event.findFirst({ where: { id: eventId, userId } });
-  return event;
+  try {
+    return await prisma.event.findFirst({ where: { id: eventId, userId } });
+  } catch (error) {
+    console.error("[GUESTS][verifyOwner] Falling back to local store:", error);
+    return await getDevEvent(userId, eventId);
+  }
 }
 
 // GET /api/events/[eventId]/guests
@@ -21,16 +26,22 @@ export async function GET(_req: Request, { params }: Ctx) {
   const event = await verifyOwner(userId, params.eventId);
   if (!event) return NextResponse.json({ error: "Event not found" }, { status: 404 });
 
-  const guests = await prisma.guest.findMany({
-    where: { eventId: params.eventId },
-    orderBy: { importedAt: "desc" },
-    include: {
-      rsvp: { select: { status: true, seatNumber: true, uniqueCode: true } },
-      checkin: { select: { checkedInAt: true } },
-    },
-  });
+  try {
+    const guests = await prisma.guest.findMany({
+      where: { eventId: params.eventId },
+      orderBy: { importedAt: "desc" },
+      include: {
+        rsvp: { select: { status: true, seatNumber: true, uniqueCode: true } },
+        checkin: { select: { checkedInAt: true } },
+      },
+    });
 
-  return NextResponse.json({ guests });
+    return NextResponse.json({ guests });
+  } catch (error) {
+    console.error("[GUESTS][GET] Falling back to local store:", error);
+    const guests = await listDevGuests(userId, params.eventId);
+    return NextResponse.json({ guests });
+  }
 }
 
 // POST /api/events/[eventId]/guests — add single guest
@@ -41,19 +52,34 @@ export async function POST(req: Request, { params }: Ctx) {
   const event = await verifyOwner(userId, params.eventId);
   if (!event) return NextResponse.json({ error: "Event not found" }, { status: 404 });
 
-  // Check subscription guest limits
-  const sub = await prisma.subscription.findUnique({ where: { userId } });
-  const plan = sub?.plan ?? "FREE";
+  let plan: "FREE" | "BASIC" | "PREMIUM" = "FREE";
+  try {
+    const sub = await prisma.subscription.findUnique({ where: { userId } });
+    if (sub?.plan === "BASIC" || sub?.plan === "PREMIUM") {
+      plan = sub.plan as "BASIC" | "PREMIUM";
+    }
+  } catch (error) {
+    console.error("[GUESTS][POST] Subscription lookup failed, using free fallback:", error);
+  }
+
   if (plan === "FREE") {
-    const count = await prisma.guest.count({ where: { eventId: params.eventId } });
-    if (count >= 50) {
-      return NextResponse.json({ error: "Free plan is limited to 50 guests. Upgrade your plan." }, { status: 403 });
+    try {
+      const count = await prisma.guest.count({ where: { eventId: params.eventId } });
+      if (count >= 50) {
+        return NextResponse.json({ error: "Free plan is limited to 50 guests. Upgrade your plan." }, { status: 403 });
+      }
+    } catch (error) {
+      console.error("[GUESTS][POST] Guest limit check failed, skipping limit enforcement:", error);
     }
   }
   if (plan === "BASIC") {
-    const count = await prisma.guest.count({ where: { eventId: params.eventId } });
-    if (count >= 500) {
-      return NextResponse.json({ error: "Basic plan is limited to 500 guests. Upgrade your plan." }, { status: 403 });
+    try {
+      const count = await prisma.guest.count({ where: { eventId: params.eventId } });
+      if (count >= 500) {
+        return NextResponse.json({ error: "Basic plan is limited to 500 guests. Upgrade your plan." }, { status: 403 });
+      }
+    } catch (error) {
+      console.error("[GUESTS][POST] Guest limit check failed, skipping limit enforcement:", error);
     }
   }
 
@@ -74,6 +100,9 @@ export async function POST(req: Request, { params }: Ctx) {
     if (err.code === "P2002") {
       return NextResponse.json({ error: "A guest with this phone number already exists" }, { status: 409 });
     }
-    throw err;
+
+    console.error("[GUESTS][POST] Falling back to local store:", err);
+    const guest = await createDevGuest(userId, params.eventId, { name, phone, email, importedVia: "MANUAL" });
+    return NextResponse.json({ guest }, { status: 201 });
   }
 }

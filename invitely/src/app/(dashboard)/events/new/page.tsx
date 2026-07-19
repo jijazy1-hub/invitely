@@ -5,7 +5,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import Link from "next/link";
-import { EventType } from "@prisma/client";
+import type { EventType } from "@/types";
 import { EVENT_TYPE_LABELS, EVENT_TYPE_ICONS } from "@/types";
 
 const EVENT_TYPES = Object.entries(EVENT_TYPE_LABELS) as [EventType, string][];

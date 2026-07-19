@@ -5,25 +5,42 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { CalendarDays, Users, CheckSquare, TrendingUp, Plus, ArrowRight } from "lucide-react";
 import prisma from "@/lib/prisma";
+import { listDevEvents } from "@/lib/dev-store";
 import { formatShortDate } from "@/lib/utils";
 import { EVENT_TYPE_ICONS, EVENT_TYPE_LABELS } from "@/types";
 
 async function getDashboardData(userId: string) {
-  const [events, totalGuests, totalConfirmed, totalCheckins] = await Promise.all([
-    prisma.event.findMany({
-      where: { userId },
-      orderBy: { id: "desc" },
-      take: 5,
-      include: {
-        _count: { select: { guests: true } },
-      },
-    }),
-    prisma.guest.count({ where: { event: { userId } } }),
-    prisma.rsvp.count({ where: { status: "CONFIRMED", guest: { event: { userId } } } }),
-    prisma.checkin.count({ where: { event: { userId } } }),
-  ]);
+  try {
+    const [events, totalGuests, totalConfirmed, totalCheckins] = await Promise.all([
+      prisma.event.findMany({
+        where: { userId },
+        orderBy: { id: "desc" },
+        take: 5,
+        include: {
+          _count: { select: { guests: true } },
+        },
+      }),
+      prisma.guest.count({ where: { event: { userId } } }),
+      prisma.rsvp.count({ where: { status: "CONFIRMED", guest: { event: { userId } } } }),
+      prisma.checkin.count({ where: { event: { userId } } }),
+    ]);
 
-  return { events, totalGuests, totalConfirmed, totalCheckins };
+    return { events, totalGuests, totalConfirmed, totalCheckins, source: "database" as const };
+  } catch (error) {
+    console.error("[DASHBOARD] DB unavailable, using local fallback:", error);
+    const fallbackEvents = await listDevEvents(userId);
+    const totalGuests = fallbackEvents.reduce((sum, event) => sum + (event._count?.guests ?? 0), 0);
+    const totalConfirmed = 0;
+    const totalCheckins = 0;
+
+    return {
+      events: fallbackEvents.slice(0, 5),
+      totalGuests,
+      totalConfirmed,
+      totalCheckins,
+      source: "local" as const,
+    };
+  }
 }
 
 export default async function DashboardPage() {
@@ -39,12 +56,15 @@ export default async function DashboardPage() {
   let totalConfirmed = 0;
   let totalCheckins = 0;
   let loadError: string | null = null;
+  let dataSource: "database" | "local" | null = null;
 
   try {
     if (!userId) {
       loadError = "We couldn't identify your account right now. Please refresh or sign in again.";
     } else {
-    ({ events, totalGuests, totalConfirmed, totalCheckins } = await getDashboardData(userId));
+      const dashboardData = await getDashboardData(userId);
+      ({ events, totalGuests, totalConfirmed, totalCheckins } = dashboardData);
+      dataSource = dashboardData.source;
     }
   } catch (error) {
     console.error("[DASHBOARD] Failed to load data:", error);
@@ -78,6 +98,11 @@ export default async function DashboardPage() {
       {loadError && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           {loadError}
+        </div>
+      )}
+      {dataSource === "local" && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+          Showing locally saved dashboard data while the live database is unavailable.
         </div>
       )}
 

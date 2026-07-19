@@ -3,9 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -26,8 +25,8 @@ model Subscription {
   id                    String            @id @default(cuid())
   userId                String            @unique
   user                  User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  plan                  SubscriptionPlan  @default(FREE)
-  status                SubStatus         @default(ACTIVE)
+  plan                  String            @default("FREE")
+  status                String            @default("ACTIVE")
   stripeCustomerId      String?
   stripeSubscriptionId  String?
   stripePriceId         String?
@@ -39,32 +38,6 @@ model Subscription {
   @@map("subscriptions")
 }
 
-enum SubscriptionPlan {
-  FREE
-  BASIC
-  PREMIUM
-}
-
-enum SubStatus {
-  ACTIVE
-  CANCELLED
-  PAST_DUE
-  TRIALING
-}
-
-enum EventType {
-  WEDDING
-  BIRTHDAY
-  CONFERENCE
-  CONCERT
-  CHURCH
-  SEMINAR
-  VIP_PARTY
-  BURIAL
-  PRIVATE_DINNER
-  OTHER
-}
-
 model Event {
   id             String    @id @default(cuid())
   userId         String
@@ -72,11 +45,11 @@ model Event {
 
   name           String
   slug           String    @unique
-  eventType      EventType @default(WEDDING)
+  eventType      String    @default("WEDDING")
   date           DateTime
   time           String?
   venue          String
-  description    String?   @db.Text
+  description    String?
   dressCode      String?
   rsvpDeadline   DateTime?
 
@@ -119,7 +92,7 @@ model Guest {
 
   invited     Boolean      @default(true)
   importedAt  DateTime     @default(now())
-  importedVia ImportSource @default(MANUAL)
+  importedVia String       @default("MANUAL")
 
   rsvp        Rsvp?
   checkin     Checkin?
@@ -130,22 +103,12 @@ model Guest {
   @@map("guests")
 }
 
-enum ImportSource {
-  MANUAL
-  BULK_TEXT
-  CSV
-  EXCEL
-  TEXT
-  DOCX
-  TXT
-}
-
 model Rsvp {
   id         String      @id @default(cuid())
   guestId    String      @unique
   guest      Guest       @relation(fields: [guestId], references: [id], onDelete: Cascade)
 
-  status     RsvpStatus  @default(PENDING)
+  status     String      @default("PENDING")
   attendance Boolean?
   uniqueCode String?     @unique
   seatNumber Int?
@@ -153,7 +116,7 @@ model Rsvp {
 
   email      String?
   photoUrl   String?
-  guestPhoto String?     @db.Text
+  guestPhoto String?
 
   rsvpedAt   DateTime?
   updatedAt  DateTime    @updatedAt
@@ -161,12 +124,6 @@ model Rsvp {
 
   @@index([uniqueCode])
   @@map("rsvps")
-}
-
-enum RsvpStatus {
-  PENDING
-  CONFIRMED
-  DECLINED
 }
 
 model Checkin {
@@ -188,11 +145,11 @@ model Template {
   id           String    @id @default(cuid())
   name         String
   description  String?
-  category     EventType @default(WEDDING)
+  category     String    @default("WEDDING")
   thumbnailUrl String?
   isPublic     Boolean   @default(true)
   createdBy    String?
-  config       Json      @default("{}")
+  config       String    @default("{}")
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 

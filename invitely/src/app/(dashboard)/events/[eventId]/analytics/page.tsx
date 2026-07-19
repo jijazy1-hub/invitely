@@ -97,15 +97,43 @@ export default function AnalyticsPage() {
   const { eventId } = useParams<{ eventId: string }>();
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`/api/events/${eventId}/analytics`)
-      .then((r) => r.json())
-      .then((d) => {
-        setData(d);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+    let isActive = true;
+
+    const loadAnalytics = async () => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const res = await fetch(`/api/events/${eventId}/analytics`);
+        const payload = await res.json();
+
+        if (!res.ok) {
+          throw new Error(payload.error || "Failed to load analytics");
+        }
+
+        if (isActive) {
+          setData(payload);
+          setLoading(false);
+        }
+      } catch (err) {
+        if (isActive) {
+          setError(err instanceof Error ? err.message : "Failed to load analytics");
+          setData(null);
+          setLoading(false);
+        }
+      }
+    };
+
+    if (eventId) {
+      loadAnalytics();
+    }
+
+    return () => {
+      isActive = false;
+    };
   }, [eventId]);
 
   if (loading) {
@@ -119,7 +147,7 @@ export default function AnalyticsPage() {
   if (!data) {
     return (
       <div className="p-8 text-center text-stone-500">
-        Failed to load analytics.
+        {error ?? "Failed to load analytics."}
       </div>
     );
   }

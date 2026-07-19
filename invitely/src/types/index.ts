@@ -1,8 +1,12 @@
 // src/types/index.ts
-import type { Event, Guest, Rsvp, EventType, RsvpStatus, SubscriptionPlan } from "@prisma/client";
+import type { Event, Guest, Rsvp } from "@prisma/client";
 
 // ─── Re-exported Prisma types ─────────────────────────────
-export type { Event, Guest, Rsvp, EventType, RsvpStatus, SubscriptionPlan };
+export type { Event, Guest, Rsvp };
+
+export type EventType = Event["eventType"];
+export type RsvpStatus = Rsvp["status"];
+export type SubscriptionPlan = "FREE" | "BASIC" | "PREMIUM";
 
 // ─── Extended types with relations ───────────────────────
 export type EventWithStats = Event & {

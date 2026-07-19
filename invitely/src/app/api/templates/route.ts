@@ -5,6 +5,15 @@ import prisma from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
+function safeParseConfig(config: string | null | undefined) {
+  if (!config) return {};
+  try {
+    return typeof config === "string" ? JSON.parse(config) : config;
+  } catch {
+    return {};
+  }
+}
+
 export async function GET(_req: NextRequest) {
   try {
     const { userId } = await auth();
@@ -24,7 +33,12 @@ export async function GET(_req: NextRequest) {
       orderBy: [{ isPublic: "desc" }, { createdAt: "asc" }],
     });
 
-    return NextResponse.json({ templates });
+    const parsedTemplates = templates.map((template) => ({
+      ...template,
+      config: safeParseConfig(template.config),
+    }));
+
+    return NextResponse.json({ templates: parsedTemplates });
   } catch (err) {
     console.error("[TEMPLATES] Error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
