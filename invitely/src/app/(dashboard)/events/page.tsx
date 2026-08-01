@@ -34,20 +34,24 @@ export default async function EventsPage() {
         },
       });
 
-      // RSVP stats per event
-      const rsvpStats = await Promise.all(
-        loadedEvents.map(async (e) => {
-          const [confirmed, declined, pending] = await Promise.all([
-            prisma.rsvp.count({ where: { status: "CONFIRMED", guest: { eventId: e.id } } }),
-            prisma.rsvp.count({ where: { status: "DECLINED", guest: { eventId: e.id } } }),
-            prisma.rsvp.count({ where: { status: "PENDING", guest: { eventId: e.id } } }),
-          ]);
-          return { eventId: e.id, confirmed, declined, pending };
-        })
-      );
+      // RSVP stats per event. If this fails, show events anyway.
+      try {
+        const rsvpStats = await Promise.all(
+          loadedEvents.map(async (e) => {
+            const [confirmed, declined, pending] = await Promise.all([
+              prisma.rsvp.count({ where: { status: "CONFIRMED", guest: { eventId: e.id } } }),
+              prisma.rsvp.count({ where: { status: "DECLINED", guest: { eventId: e.id } } }),
+              prisma.rsvp.count({ where: { status: "PENDING", guest: { eventId: e.id } } }),
+            ]);
+            return { eventId: e.id, confirmed, declined, pending };
+          })
+        );
 
-      for (const stat of rsvpStats) {
-        statsMap[stat.eventId] = stat;
+        for (const stat of rsvpStats) {
+          statsMap[stat.eventId] = stat;
+        }
+      } catch (error) {
+        console.error("[EVENTS] RSVP stats failed:", error);
       }
 
       events.push(...loadedEvents);
@@ -101,7 +105,7 @@ export default async function EventsPage() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {events.map((event) => {
-            const stats = statsMap[event.id];
+            const stats = statsMap[event.id] ?? { confirmed: 0, declined: 0, pending: 0 };
             const confirmedRate = event._count.guests > 0
               ? Math.round((stats.confirmed / event._count.guests) * 100)
               : 0;

@@ -28,4 +28,8 @@ prisma/*.db
 # swap/temp files
 *.swp
 node_modules
-node_modules
+
+# nested invitely app
+/invitely/.next/
+/invitely/node_modules
+/invitely/prisma/*.db
