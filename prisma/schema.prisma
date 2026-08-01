@@ -4,140 +4,157 @@ generator client {
 
 datasource db {
   provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  url       = env("POSTGRES_URL")
+  directUrl = env("POSTGRES_URL_NON_POOLING")
 }
 
 model User {
-  id            String         @id @default(cuid())
-  clerkId       String         @unique
-  email         String         @unique
-  name          String?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  events        Event[]
-  subscription  Subscription?
-  templates     Template[]
+  id           String        @id
+  email        String        @unique
+  name         String?
+  imageUrl     String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  events       Event[]
+  subscription Subscription?
+
+  @@map("users")
 }
 
 model Subscription {
-  id        String   @id @default(cuid())
-  userId    String   @unique
-  plan      Plan     @default(FREE)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
+  id                    String            @id @default(cuid())
+  userId                String            @unique
+  user                  User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan                  String            @default("FREE")
+  status                String            @default("ACTIVE")
+  stripeCustomerId      String?
+  stripeSubscriptionId  String?
+  stripePriceId         String?
+  currentPeriodStart    DateTime?
+  currentPeriodEnd      DateTime?
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
 
-enum Plan {
-  FREE
-  BASIC
-  PREMIUM
+  @@map("subscriptions")
 }
 
 model Event {
-  id              String      @id @default(cuid())
-  userId          String
-  name            String
-  slug            String      @unique
-  eventType       EventType   @default(OTHER)
-  date            DateTime?
-  time            String?
-  venue           String?
-  description     String?
-  dressCode       String?
-  rsvpDeadline    DateTime?
-  organizerName   String?
-  organizerPhone  String?
-  requirePhoto    Boolean     @default(false)
-  isPublished     Boolean     @default(false)
-  primaryColor    String      @default("#0A2810")
-  secondaryColor  String      @default("#B8860B")
-  accentColor     String      @default("#F8F4E3")
-  templateId      String?
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
-  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  guests          Guest[]
-  checkIns        CheckIn[]
-}
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-enum EventType {
-  WEDDING
-  BIRTHDAY
-  CONFERENCE
-  CONCERT
-  CHURCH
-  SEMINAR
-  VIP_PARTY
-  BURIAL
-  PRIVATE_DINNER
-  OTHER
+  name           String
+  slug           String    @unique
+  eventType      String    @default("WEDDING")
+  date           DateTime
+  time           String?
+  venue          String
+  description    String?
+  dressCode      String?
+  rsvpDeadline   DateTime?
+
+  organizerName  String?
+  organizerPhone String?
+  organizerEmail String?
+
+  logoUrl        String?
+  coverUrl       String?
+  primaryColor   String    @default("#0A2810")
+  secondaryColor String    @default("#B8860B")
+  accentColor    String    @default("#F8F4E3")
+
+  templateId     String?
+  template       Template? @relation(fields: [templateId], references: [id])
+
+  isPublished    Boolean   @default(false)
+  requirePhoto   Boolean   @default(true)
+  maxGuests      Int?
+
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  guests         Guest[]
+  checkins       Checkin[]
+
+  @@index([userId])
+  @@index([slug])
+  @@map("events")
 }
 
 model Guest {
   id          String       @id @default(cuid())
   eventId     String
+  event       Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
   name        String
   phone       String
   email       String?
-  importedVia ImportSource @default(MANUAL)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  event       Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  rsvp        RSVP?
-  checkIns    CheckIn[]
+
+  invited     Boolean      @default(true)
+  importedAt  DateTime     @default(now())
+  importedVia String       @default("MANUAL")
+
+  rsvp        Rsvp?
+  checkin     Checkin?
 
   @@unique([eventId, phone])
+  @@index([eventId])
+  @@index([phone])
+  @@map("guests")
 }
 
-enum ImportSource {
-  MANUAL
-  CSV
-  EXCEL
-  TEXT
-  DOCX
-}
+model Rsvp {
+  id         String      @id @default(cuid())
+  guestId    String      @unique
+  guest      Guest       @relation(fields: [guestId], references: [id], onDelete: Cascade)
 
-model RSVP {
-  id         String     @id @default(cuid())
-  guestId    String     @unique
-  status     RSVPStatus @default(PENDING)
-  uniqueCode String     @unique
+  status     String      @default("PENDING")
+  attendance Boolean?
+  uniqueCode String?     @unique
   seatNumber Int?
   cardUrl    String?
+
+  email      String?
   photoUrl   String?
-  createdAt  DateTime   @default(now())
-  updatedAt  DateTime   @updatedAt
-  guest      Guest      @relation(fields: [guestId], references: [id], onDelete: Cascade)
+  guestPhoto String?
+
+  rsvpedAt   DateTime?
+  updatedAt  DateTime    @updatedAt
+  createdAt  DateTime    @default(now())
+
+  @@index([uniqueCode])
+  @@map("rsvps")
 }
 
-enum RSVPStatus {
-  PENDING
-  CONFIRMED
-  DECLINED
-}
+model Checkin {
+  id          String   @id @default(cuid())
+  eventId     String
+  event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  guestId     String   @unique
+  guest       Guest    @relation(fields: [guestId], references: [id], onDelete: Cascade)
 
-model CheckIn {
-  id        String   @id @default(cuid())
-  eventId   String
-  guestId   String
-  createdAt DateTime @default(now())
-  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  guest     Guest    @relation(fields: [guestId], references: [id], onDelete: Cascade)
+  checkedInAt DateTime @default(now())
+  checkedInBy String?
+  notes       String?
 
-  @@unique([eventId, guestId])
+  @@index([eventId])
+  @@map("checkins")
 }
 
 model Template {
-  id          String    @id @default(cuid())
-  name        String
-  description String?
-  category    EventType @default(OTHER)
-  isPublic    Boolean   @default(false)
-  config      Json
-  userId      String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  id           String    @id @default(cuid())
+  name         String
+  description  String?
+  category     String    @default("WEDDING")
+  thumbnailUrl String?
+  isPublic     Boolean   @default(true)
+  createdBy    String?
+  config       String    @default("{}")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  events       Event[]
+
+  @@map("templates")
 }
