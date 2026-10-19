@@ -33,3 +33,6 @@ node_modules
 /invitely/.next/
 /invitely/node_modules
 /invitely/prisma/*.db
+
+.next
+node_modules
