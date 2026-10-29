@@ -1,3 +1,4 @@
+// prisma/seed.ts
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
@@ -7,7 +8,6 @@ async function main() {
 
   const templates = [
     {
-      id: "classic-ivory-wedding",
       name: "Classic Ivory Wedding",
       description: "Elegant ivory and gold design, perfect for formal weddings",
       category: "WEDDING" as const,
@@ -15,7 +15,6 @@ async function main() {
       config: { primaryColor: "#0A2810", secondaryColor: "#B8860B", accentColor: "#F8F4E3" },
     },
     {
-      id: "modern-birthday",
       name: "Modern Birthday",
       description: "Vibrant and modern design for birthday celebrations",
       category: "BIRTHDAY" as const,
@@ -23,7 +22,6 @@ async function main() {
       config: { primaryColor: "#7C3AED", secondaryColor: "#F59E0B", accentColor: "#FDF4FF" },
     },
     {
-      id: "corporate-conference",
       name: "Corporate Conference",
       description: "Professional navy and silver for corporate events",
       category: "CONFERENCE" as const,
@@ -31,7 +29,6 @@ async function main() {
       config: { primaryColor: "#1E3A5F", secondaryColor: "#94A3B8", accentColor: "#F8FAFC" },
     },
     {
-      id: "vip-night",
       name: "VIP Night",
       description: "Black and gold luxury design for exclusive events",
       category: "VIP_PARTY" as const,
@@ -39,7 +36,6 @@ async function main() {
       config: { primaryColor: "#111111", secondaryColor: "#D4A843", accentColor: "#1A1A1A" },
     },
     {
-      id: "church-program",
       name: "Church Program",
       description: "Serene purple and white for church events",
       category: "CHURCH" as const,
@@ -49,10 +45,11 @@ async function main() {
   ];
 
   for (const t of templates) {
+    const id = t.name.replace(/\s+/g, "-").toLowerCase();
     await prisma.template.upsert({
-      where: { id: t.id },
-      update: {},
-      create: t,
+      where: { id },
+      update: { ...t, config: JSON.stringify(t.config) },
+      create: { id, ...t, config: JSON.stringify(t.config) },
     });
   }
 

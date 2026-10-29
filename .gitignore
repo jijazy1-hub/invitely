@@ -36,3 +36,7 @@ node_modules
 
 .next
 node_modules
+
+# real secrets / paste-files
+.env.vercel
+.env.local
