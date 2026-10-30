@@ -114,7 +114,7 @@ export default async function EventsPage() {
                 <div className="p-5">
                   <div className="flex items-start justify-between mb-3">
                     <div className="h-10 w-10 rounded-lg bg-stone-100 flex items-center justify-center text-xl">
-                      {EVENT_TYPE_ICONS[event.eventType]}
+                      {EVENT_TYPE_ICONS[event.eventType as keyof typeof EVENT_TYPE_ICONS]}
                     </div>
                     <span className={`text-xs font-medium px-2 py-1 rounded-full ${
                       event.isPublished ? "bg-emerald-100 text-emerald-700" : "bg-stone-100 text-stone-600"
@@ -125,7 +125,7 @@ export default async function EventsPage() {
 
                   <h3 className="font-semibold text-stone-900 mb-1">{event.name}</h3>
                   <p className="text-xs text-stone-500 mb-4">
-                    {EVENT_TYPE_LABELS[event.eventType]} · {formatShortDate(event.date)}
+                    {EVENT_TYPE_LABELS[event.eventType as keyof typeof EVENT_TYPE_LABELS]} · {formatShortDate(event.date)}
                   </p>
 
                   {/* Stats row */}

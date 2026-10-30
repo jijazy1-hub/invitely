@@ -120,12 +120,12 @@ export default async function DashboardPage() {
               >
                 <div className="flex items-center gap-4">
                   <div className="h-10 w-10 rounded-lg bg-stone-100 flex items-center justify-center text-lg">
-                    {EVENT_TYPE_ICONS[event.eventType]}
+                    {EVENT_TYPE_ICONS[event.eventType as keyof typeof EVENT_TYPE_ICONS]}
                   </div>
                   <div>
                     <p className="font-medium text-stone-900 text-sm">{event.name}</p>
                     <p className="text-xs text-stone-500 mt-0.5">
-                      {EVENT_TYPE_LABELS[event.eventType]} · {formatShortDate(event.date)}
+                      {EVENT_TYPE_LABELS[event.eventType as keyof typeof EVENT_TYPE_LABELS]} · {formatShortDate(event.date)}
                     </p>
                   </div>
                 </div>
