@@ -38,8 +38,6 @@ model Subscription {
   currentPeriodEnd      DateTime?
   gifted                Boolean           @default(false)
   giftedBy              String?
-  gifted                Boolean           @default(false)
-  giftedBy              String?
   createdAt             DateTime          @default(now())
   updatedAt             DateTime          @updatedAt
 
@@ -204,67 +202,6 @@ model PlanConfig {
   maxEvents  Int?                            // null = unlimited
   maxGuests  Int?                            // null = unlimited per event
   features   String   @default("")           // one feature per line
-  updatedAt  DateTime @updatedAt
-
-  @@map("plan_configs")
-}
-model Payment {
-  id            String    @id @default(cuid())
-  userId        String
-  provider      String
-  reference     String    @unique
-  providerTxId  String?
-  plan          String
-  amount        Int
-  currency      String    @default("NGN")
-  status        String    @default("PENDING")
-  createdAt     DateTime  @default(now())
-  paidAt        DateTime?
-
-  @@index([userId])
-  @@index([status])
-  @@index([createdAt])
-  @@map("payments")
-}
-
-model PlanConfig {
-  key        String   @id
-  name       String
-  priceNgn   Int      @default(0)
-  maxEvents  Int?
-  maxGuests  Int?
-  features   String   @default("")
-  updatedAt  DateTime @updatedAt
-
-  @@map("plan_configs")
-}
-
-model Payment {
-  id            String    @id @default(cuid())
-  userId        String
-  provider      String
-  reference     String    @unique
-  providerTxId  String?
-  plan          String
-  amount        Int
-  currency      String    @default("NGN")
-  status        String    @default("PENDING")
-  createdAt     DateTime  @default(now())
-  paidAt        DateTime?
-
-  @@index([userId])
-  @@index([status])
-  @@index([createdAt])
-  @@map("payments")
-}
-
-model PlanConfig {
-  key        String   @id
-  name       String
-  priceNgn   Int      @default(0)
-  maxEvents  Int?
-  maxGuests  Int?
-  features   String   @default("")
   updatedAt  DateTime @updatedAt
 
   @@map("plan_configs")
