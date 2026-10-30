@@ -1,12 +1,10 @@
 
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import { headers } from "next/headers";
 import Link from "next/link";
 import { Globe, ExternalLink, QrCode, Users, BarChart2 } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
-import { describeDbError } from "@/lib/plan";
 import { formatDate } from "@/lib/utils";
 import { PublishToggle } from "@/components/events/publish-toggle";
 import CopyButton from "@/components/events/copy-button";
@@ -51,7 +49,7 @@ export default async function EventPage({ params }: { params: { eventId: string 
       }
     } catch (error) {
       console.error("[EVENT] Failed to load event details:", error);
-      loadError = describeDbError(error);
+      loadError = "We couldn't load this event right now. Please try again shortly.";
     }
   }
 
@@ -71,11 +69,7 @@ export default async function EventPage({ params }: { params: { eventId: string 
     );
   }
 
-  // Build links from the domain the page is actually served on (works on Vercel, Codespaces, localhost)
-  const h = headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host");
-  const proto = h.get("x-forwarded-proto") ?? (host?.startsWith("localhost") ? "http" : "https");
-  const baseUrl = host ? `${proto}://${host}` : process.env.NEXT_PUBLIC_APP_URL ?? "";
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://invitely-nine.vercel.app";
   const inviteUrl = `${baseUrl}/invite/${event.slug}`;
   const checkinUrl = `${baseUrl}/checkin/${event.slug}`;
 

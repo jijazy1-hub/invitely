@@ -1,0 +1,42 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Add to prisma/schema.prisma. Leave your datasource/generator blocks as they are.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// 1) In the existing `model Subscription`, add these two lines
+//    (anywhere inside it, e.g. just above `createdAt`):
+//
+//      gifted                Boolean           @default(false)
+//      giftedBy              String?
+
+// 2) Add these two new models at the bottom of the file:
+
+model Payment {
+  id            String    @id @default(cuid())
+  userId        String
+  provider      String                       // FLUTTERWAVE | PAYSTACK
+  reference     String    @unique            // our tx_ref, sent to the provider
+  providerTxId  String?                      // provider's own transaction id
+  plan          String
+  amount        Int                          // whole currency units (e.g. naira)
+  currency      String    @default("NGN")
+  status        String    @default("PENDING") // PENDING | SUCCESSFUL | FAILED
+  createdAt     DateTime  @default(now())
+  paidAt        DateTime?
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("payments")
+}
+
+model PlanConfig {
+  key        String   @id                    // FREE | BASIC | PREMIUM
+  name       String
+  priceNgn   Int      @default(0)
+  maxEvents  Int?                            // null = unlimited
+  maxGuests  Int?                            // null = unlimited per event
+  features   String   @default("")           // one feature per line
+  updatedAt  DateTime @updatedAt
+
+  @@map("plan_configs")
+}

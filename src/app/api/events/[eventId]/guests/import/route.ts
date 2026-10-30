@@ -2,10 +2,10 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
-import { describeDbError, getPlan, guestLimit, limitsEnforced } from "@/lib/plan";
-import { normalizePhone, isValidPhone, parseBulkGuestText } from "@/utils/phone";
+import { getUserPlan } from "@/lib/plans";
 
 export const dynamic = "force-dynamic";
+import { normalizePhone, isValidPhone, parseBulkGuestText } from "@/utils/phone";
 
 type Ctx = { params: { eventId: string } };
 type GuestRow = { name: string; phone: string };
@@ -48,6 +48,7 @@ async function parseFileBuffer(buffer: Buffer, filename: string): Promise<GuestR
 
   if (ext === "docx") {
     // Extract plain text from docx by parsing XML
+    const JSZip = (await import("xlsx")).SSF; // fallback: treat as text
     // Simple approach: convert buffer to string and extract text patterns
     const text = buffer.toString("latin1");
     const matches = text.match(/[A-Za-z\s]+,\s*0?\d{10,11}/g) || [];
@@ -65,21 +66,6 @@ async function parseFileBuffer(buffer: Buffer, filename: string): Promise<GuestR
 
 // POST /api/events/[eventId]/guests/import
 export async function POST(req: Request, { params }: Ctx) {
-  try {
-    return await handleImport(req, params);
-  } catch (err) {
-    console.error("[IMPORT]", err);
-    return NextResponse.json(
-      {
-        error: describeDbError(err),
-        report: { imported: 0, duplicates: 0, invalid: 0, errors: [describeDbError(err)] },
-      },
-      { status: 500 }
-    );
-  }
-}
-
-async function handleImport(req: Request, params: { eventId: string }) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -115,22 +101,21 @@ async function handleImport(req: Request, params: { eventId: string }) {
   const deduped = dedupeRows(parsedRows);
   report.duplicates += parsedRows.length - deduped.length;
 
-  // Plan limits (only enforced when ENFORCE_PLAN_LIMITS=true)
-  let remaining = Infinity;
-  if (limitsEnforced()) {
-    const plan = await getPlan(userId);
-    const existingCount = await prisma.guest.count({ where: { eventId: params.eventId } });
-    remaining = guestLimit(plan) - existingCount;
-    if (remaining <= 0) {
-      return NextResponse.json({
-        error: `You've reached the guest limit for your ${plan} plan.`,
-        report,
-      }, { status: 403 });
-    }
+  // Check plan limits
+  const plan = await getUserPlan(userId);
+  const existingCount = await prisma.guest.count({ where: { eventId: params.eventId } });
+  const limit = plan.maxGuests ?? Infinity;
+  const remaining = limit - existingCount;
+
+  if (remaining <= 0) {
+    return NextResponse.json({
+      error: `You've reached the guest limit for your ${plan.name} plan.`,
+      report,
+    }, { status: 403 });
   }
 
   // Trim to remaining slots
-  const toImport = Number.isFinite(remaining) ? deduped.slice(0, remaining) : deduped;
+  const toImport = deduped.slice(0, remaining);
 
   // Batch insert — skip existing phones (upsert with skipDuplicates)
   const results = await prisma.$transaction(
@@ -149,6 +134,7 @@ async function handleImport(req: Request, params: { eventId: string }) {
   );
 
   report.imported = results.length;
+  report.duplicates += toImport.length - results.length;
 
   return NextResponse.json({ report });
 }

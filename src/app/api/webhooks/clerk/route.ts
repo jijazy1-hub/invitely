@@ -57,25 +57,18 @@ export async function POST(req: Request) {
 
   switch (event.type) {
     case "user.created":
-      // upsert: the app may already have created this row on first event creation
+    case "user.updated":
+      // upsert: the user row may already exist (created on first event/checkout)
       await prisma.user.upsert({
         where: { id },
         update: { email, name, imageUrl: image_url },
         create: { id, email, name, imageUrl: image_url },
       });
-      // Create a default free subscription
+      // Make sure there is a subscription row (free by default); never overwrite an existing one
       await prisma.subscription.upsert({
         where: { userId: id },
         update: {},
         create: { userId: id, plan: "FREE", status: "ACTIVE" },
-      });
-      break;
-
-    case "user.updated":
-      await prisma.user.upsert({
-        where: { id },
-        update: { email, name, imageUrl: image_url },
-        create: { id, email, name, imageUrl: image_url },
       });
       break;
 

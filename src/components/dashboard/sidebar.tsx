@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
 import {
   LayoutDashboard, CalendarDays, Users, Palette,
-  BarChart2, CreditCard, Settings, Menu, X, Zap
+  BarChart2, CreditCard, Settings, Menu, X, Zap, ShieldCheck
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
@@ -21,8 +21,11 @@ const navItems = [
   { href: "/settings",    label: "Settings",   icon: Settings },
 ];
 
-export function Sidebar() {
+export function Sidebar({ showAdmin = false }: { showAdmin?: boolean }) {
   const pathname = usePathname();
+  const items = showAdmin
+    ? [...navItems, { href: "/admin", label: "Admin", icon: ShieldCheck }]
+    : navItems;
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -42,7 +45,7 @@ export function Sidebar() {
 
       {/* Nav links */}
       <div className="flex-1 space-y-0.5 px-3 py-4">
-        {navItems.map(({ href, label, icon: Icon }) => {
+        {items.map(({ href, label, icon: Icon }) => {
           const active = pathname === href || (href !== "/dashboard" && pathname.startsWith(href));
           return (
             <Link

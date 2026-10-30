@@ -2,17 +2,16 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
-import { ensureUser } from "@/lib/ensure-user";
-import { describeDbError, eventLimit, getPlan, limitsEnforced } from "@/lib/plan";
-import { generateSlug, randomSuffix } from "@/utils/codes";
-import { z } from "zod";
+import { getUserPlan } from "@/lib/plans";
 
 export const dynamic = "force-dynamic";
+import { generateSlug, randomSuffix } from "@/utils/codes";
+import { z } from "zod";
 
 const createEventSchema = z.object({
   name: z.string().min(1).max(120),
   eventType: z.enum(["WEDDING","BIRTHDAY","CONFERENCE","CONCERT","CHURCH","SEMINAR","VIP_PARTY","BURIAL","PRIVATE_DINNER","OTHER"]),
-  date: z.string().refine((v) => !Number.isNaN(Date.parse(v)), "Please enter a valid date"),
+  date: z.string(),
   time: z.string().optional().nullable(),
   venue: z.string().min(1),
   description: z.string().optional().nullable(),
@@ -20,7 +19,7 @@ const createEventSchema = z.object({
   rsvpDeadline: z.string().optional().nullable(),
   organizerName: z.string().optional().nullable(),
   organizerPhone: z.string().optional().nullable(),
-  organizerEmail: z.string().email().optional().nullable().or(z.literal("")),
+  organizerEmail: z.string().email().optional().nullable(),
   primaryColor: z.string().default("#0A2810"),
   secondaryColor: z.string().default("#B8860B"),
   accentColor: z.string().default("#F8F4E3"),
@@ -35,14 +34,14 @@ export async function GET() {
 
     const events = await prisma.event.findMany({
       where: { userId },
-      orderBy: { createdAt: "desc" },
+      orderBy: { id: "desc" },
       include: { _count: { select: { guests: true } } },
     });
 
     return NextResponse.json({ events });
   } catch (error) {
     console.error("[EVENTS][GET] Failed:", error);
-    return NextResponse.json({ error: describeDbError(error) }, { status: 500 });
+    return NextResponse.json({ error: "Failed to load events." }, { status: 500 });
   }
 }
 
@@ -59,32 +58,33 @@ export async function POST(req: Request) {
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    // Make sure the users row exists (foreign key for events.userId)
-    await ensureUser(userId);
+    // Ensure user record exists (should be created by Clerk webhook, but safety net)
+    await prisma.user.upsert({
+      where: { id: userId },
+      update: {},
+      create: { id: userId, email: `${userId}@placeholder.invitely.app` },
+    });
 
     const data = parsed.data;
 
-    // Plan limits (only enforced when ENFORCE_PLAN_LIMITS=true)
-    if (limitsEnforced()) {
-      const plan = await getPlan(userId);
-      const limit = eventLimit(plan);
+    // Check subscription limits (expiry-aware, admin-editable)
+    const plan = await getUserPlan(userId);
+    if (plan.maxEvents !== null) {
       const count = await prisma.event.count({ where: { userId } });
-      if (count >= limit) {
+      if (count >= plan.maxEvents) {
         return NextResponse.json(
-          { error: `${plan === "FREE" ? "Free" : "Basic"} plan is limited to ${limit} event${limit === 1 ? "" : "s"}. Upgrade to create more.` },
+          {
+            error: `${plan.name} plan is limited to ${plan.maxEvents} event${plan.maxEvents === 1 ? "" : "s"}. Upgrade to create more.`,
+          },
           { status: 403 }
         );
       }
     }
 
     // Generate unique slug
-    const base = generateSlug(data.name) || "event";
-    let slug = base;
-    for (let attempt = 0; attempt < 5; attempt++) {
-      const existing = await prisma.event.findUnique({ where: { slug } });
-      if (!existing) break;
-      slug = `${base}-${randomSuffix(4)}`;
-    }
+    let slug = generateSlug(data.name);
+    const existing = await prisma.event.findUnique({ where: { slug } });
+    if (existing) slug = generateSlug(data.name, randomSuffix(4));
 
     const event = await prisma.event.create({
       data: {
@@ -93,14 +93,14 @@ export async function POST(req: Request) {
         slug,
         eventType: data.eventType,
         date: new Date(data.date),
-        time: data.time || null,
+        time: data.time ?? null,
         venue: data.venue,
-        description: data.description || null,
-        dressCode: data.dressCode || null,
+        description: data.description ?? null,
+        dressCode: data.dressCode ?? null,
         rsvpDeadline: data.rsvpDeadline ? new Date(data.rsvpDeadline) : null,
-        organizerName: data.organizerName || null,
-        organizerPhone: data.organizerPhone || null,
-        organizerEmail: data.organizerEmail || null,
+        organizerName: data.organizerName ?? null,
+        organizerPhone: data.organizerPhone ?? null,
+        organizerEmail: data.organizerEmail ?? null,
         primaryColor: data.primaryColor,
         secondaryColor: data.secondaryColor,
         accentColor: data.accentColor,
@@ -111,6 +111,9 @@ export async function POST(req: Request) {
     return NextResponse.json(event, { status: 201 });
   } catch (error) {
     console.error("[EVENTS][POST] Failed:", error);
-    return NextResponse.json({ error: describeDbError(error) }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to create event. Check server logs for details." },
+      { status: 500 }
+    );
   }
 }

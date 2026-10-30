@@ -2,7 +2,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
-import { describeDbError } from "@/lib/plan";
 
 export const dynamic = "force-dynamic";
 
@@ -14,13 +13,16 @@ export async function GET(
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+
     const event = await prisma.event.findFirst({
-      where: { id: params.eventId, userId },
+      where: { id: params.eventId, userId: user.id },
     });
 
     if (!event) return NextResponse.json({ error: "Event not found" }, { status: 404 });
 
-    {
+    try {
       const [totalGuests, rsvpStats, checkinCount, guests] = await Promise.all([
         prisma.guest.count({ where: { eventId: event.id } }),
         prisma.rsvp.groupBy({
@@ -32,12 +34,12 @@ export async function GET(
         prisma.guest.findMany({
           where: { eventId: event.id },
           include: { rsvp: true, checkin: true },
-          orderBy: { importedAt: "asc" },
+          orderBy: { id: "asc" },
         }),
       ]);
 
-      const confirmed = rsvpStats.find((r: { status: string }) => r.status === "CONFIRMED")?._count.status ?? 0;
-      const declined = rsvpStats.find((r: { status: string }) => r.status === "DECLINED")?._count.status ?? 0;
+      const confirmed = rsvpStats.find((r) => r.status === "CONFIRMED")?._count.status ?? 0;
+      const declined = rsvpStats.find((r) => r.status === "DECLINED")?._count.status ?? 0;
       const pending = totalGuests - confirmed - declined;
 
       const now = new Date();
@@ -88,9 +90,12 @@ export async function GET(
         trend,
         importSources,
       });
+    } catch (error) {
+      console.error("[ANALYTICS] Database aggregation failed:", error);
+      return NextResponse.json({ error: "Failed to load analytics." }, { status: 500 });
     }
   } catch (err) {
     console.error("[ANALYTICS] Error:", err);
-    return NextResponse.json({ error: describeDbError(err) }, { status: 500 });
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

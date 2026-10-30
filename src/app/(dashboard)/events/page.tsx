@@ -2,20 +2,12 @@
 export const dynamic = "force-dynamic";
 // src/app/(dashboard)/events/page.tsx
 import { auth } from "@clerk/nextjs/server";
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Plus, Calendar, Users, ExternalLink } from "lucide-react";
 import prisma from "@/lib/prisma";
-import { describeDbError } from "@/lib/plan";
 import { formatShortDate } from "@/lib/utils";
-import { EVENT_TYPE_ICONS, EVENT_TYPE_LABELS, type EventType } from "@/types";
-
-async function loadEvents(userId: string) {
-  return prisma.event.findMany({
-    where: { userId },
-    orderBy: { createdAt: "desc" },
-    include: { _count: { select: { guests: true } } },
-  });
-}
+import { EVENT_TYPE_ICONS, EVENT_TYPE_LABELS } from "@/types";
 
 export default async function EventsPage() {
   let userId: string | null = null;
@@ -26,19 +18,25 @@ export default async function EventsPage() {
   }
 
   let loadError: string | null = null;
-  const events: Awaited<ReturnType<typeof loadEvents>> = [];
+  const events = [];
   const statsMap: Record<string, { confirmed: number; declined: number; pending: number }> = {};
 
   if (!userId) {
     loadError = "We couldn't identify your account right now. Please refresh or sign in again.";
   } else {
     try {
-      const loadedEvents = await loadEvents(userId);
+      const loadedEvents = await prisma.event.findMany({
+        where: { userId },
+        orderBy: { id: "desc" },
+        include: {
+          _count: { select: { guests: true } },
+        },
+      });
 
       // RSVP stats per event. If this fails, show events anyway.
       try {
         const rsvpStats = await Promise.all(
-          loadedEvents.map(async (e: { id: string }) => {
+          loadedEvents.map(async (e) => {
             const [confirmed, declined, pending] = await Promise.all([
               prisma.rsvp.count({ where: { status: "CONFIRMED", guest: { eventId: e.id } } }),
               prisma.rsvp.count({ where: { status: "DECLINED", guest: { eventId: e.id } } }),
@@ -58,7 +56,7 @@ export default async function EventsPage() {
       events.push(...loadedEvents);
     } catch (error) {
       console.error("[EVENTS] Failed to load events:", error);
-      loadError = describeDbError(error);
+      loadError = "We couldn't load your events right now. Please try again shortly.";
     }
   }
 
@@ -116,7 +114,7 @@ export default async function EventsPage() {
                 <div className="p-5">
                   <div className="flex items-start justify-between mb-3">
                     <div className="h-10 w-10 rounded-lg bg-stone-100 flex items-center justify-center text-xl">
-                      {EVENT_TYPE_ICONS[event.eventType as EventType] ?? "📅"}
+                      {EVENT_TYPE_ICONS[event.eventType]}
                     </div>
                     <span className={`text-xs font-medium px-2 py-1 rounded-full ${
                       event.isPublished ? "bg-emerald-100 text-emerald-700" : "bg-stone-100 text-stone-600"
@@ -127,7 +125,7 @@ export default async function EventsPage() {
 
                   <h3 className="font-semibold text-stone-900 mb-1">{event.name}</h3>
                   <p className="text-xs text-stone-500 mb-4">
-                    {EVENT_TYPE_LABELS[event.eventType as EventType] ?? event.eventType} · {formatShortDate(event.date)}
+                    {EVENT_TYPE_LABELS[event.eventType]} · {formatShortDate(event.date)}
                   </p>
 
                   {/* Stats row */}
