@@ -9,7 +9,7 @@ import React from "react";
 import { ImageResponse } from "next/og";
 import QRCode from "qrcode";
 import type { CardData } from "@/lib/card";
-import type { CardDesign, Frame, Ornament } from "@/lib/card-design";
+import { coverBox, type CardDesign, type Frame, type Ornament } from "@/lib/card-design";
 import {
   loadFonts, FAMILY, clean, inkOn, rgba, sizeFor, initials, validPhoto, validBackground, svgDataUrl, formatEventDate,
 } from "@/lib/card-shared";
@@ -191,12 +191,30 @@ function SeatPill({ ctx, bg, fg, border }: { ctx: Ctx; bg: string; fg: string; b
   );
 }
 
+/** The background photo trimmed to a w × h box around the design's focus point. */
+function FittedPhoto({ ctx, w, h }: { ctx: Ctx; w: number; h: number }) {
+  if (!ctx.bg) return null;
+  const { design } = ctx;
+  const box = coverBox(design.backgroundWidth, design.backgroundHeight, w, h, design.focusX, design.focusY, design.zoom);
+  return (
+    <div style={{ display: "flex", position: "absolute", top: 0, left: 0, width: w, height: h, overflow: "hidden" }}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={ctx.bg}
+        width={Math.round(box.width)}
+        height={Math.round(box.height)}
+        style={{ position: "absolute", left: Math.round(box.left), top: Math.round(box.top), width: Math.round(box.width), height: Math.round(box.height) }}
+        alt=""
+      />
+    </div>
+  );
+}
+
 function Background({ ctx, w, h, fadeColor }: { ctx: Ctx; w: number; h: number; fadeColor: string }) {
   if (!ctx.bg) return null;
   return (
     <>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={ctx.bg} width={w} height={h} style={{ position: "absolute", top: 0, left: 0, width: w, height: h, objectFit: "cover" }} alt="" />
+      <FittedPhoto ctx={ctx} w={w} h={h} />
       <div style={{ display: "flex", position: "absolute", top: 0, left: 0, width: w, height: h, background: rgba(fadeColor, ctx.design.backgroundFade / 100) }} />
     </>
   );
@@ -349,8 +367,7 @@ function Modern(ctx: Ctx) {
       {/* Hero */}
       <div style={{ display: "flex", position: "relative", width: W, height: HERO, background: c.primary, overflow: "hidden" }}>
         {ctx.bg ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={ctx.bg} width={W} height={HERO} style={{ position: "absolute", top: 0, left: 0, width: W, height: HERO, objectFit: "cover" }} alt="" />
+          <FittedPhoto ctx={ctx} w={W} h={HERO} />
         ) : (
           <>
             <div style={{ display: "flex", position: "absolute", width: 620, height: 620, borderRadius: 310, background: rgba(c.accent, 0.35), top: -220, right: -160 }} />

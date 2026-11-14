@@ -11,13 +11,17 @@ import {
 } from "lucide-react";
 import {
   type CardDesign, type Layout, LAYOUTS, TITLE_FONTS, ORNAMENTS, FRAMES, DESIGN_PRESETS, COLOR_SWATCHES,
-  defaultDesign, isPremiumDesign,
+  defaultDesign, isPremiumDesign, coverBox, backgroundBoxFor,
 } from "@/lib/card-design";
 
 type Access = { premium: boolean; mode: "PAID" | "FREE" };
 
-// Crops/resizes the chosen photo to the card's shape (1080 × 1500) as a JPEG.
-async function prepareBackground(file: File): Promise<string> {
+type PreparedPhoto = { dataUrl: string; width: number; height: number; focusX: number; focusY: number; foundFaces: boolean };
+
+// Keeps the WHOLE photo (longest side ≤ 1600px) so each layout can trim it to its
+// own shape. Finds faces where the browser supports it (Chrome on Android/Mac);
+// otherwise aims at the upper third, where faces usually are.
+async function prepareBackground(file: File): Promise<PreparedPhoto> {
   const url = URL.createObjectURL(file);
   try {
     const img = await new Promise<HTMLImageElement>((resolve, reject) => {
@@ -26,24 +30,114 @@ async function prepareBackground(file: File): Promise<string> {
       i.onerror = () => reject(new Error("decode"));
       i.src = url;
     });
-    const W = 1080, H = 1500;
-    const scale = Math.max(W / img.naturalWidth, H / img.naturalHeight);
-    const sw = W / scale, sh = H / scale;
-    const sx = (img.naturalWidth - sw) / 2, sy = (img.naturalHeight - sh) / 2;
+    const scale = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
+    const width = Math.round(img.naturalWidth * scale);
+    const height = Math.round(img.naturalHeight * scale);
     const canvas = document.createElement("canvas");
-    canvas.width = W;
-    canvas.height = H;
-    canvas.getContext("2d")!.drawImage(img, sx, sy, sw, sh, 0, 0, W, H);
-    let q = 0.82;
-    let out = canvas.toDataURL("image/jpeg", q);
-    while (out.length > 1_100_000 && q > 0.4) {
-      q -= 0.1;
-      out = canvas.toDataURL("image/jpeg", q);
+    canvas.width = width;
+    canvas.height = height;
+    canvas.getContext("2d")!.drawImage(img, 0, 0, width, height);
+
+    let focusX = 0.5, focusY = 0.33, foundFaces = false;
+    const FD = (window as any).FaceDetector;
+    if (FD) {
+      try {
+        const faces: { boundingBox: DOMRectReadOnly }[] = await new FD({ fastMode: true, maxDetectedFaces: 6 }).detect(canvas);
+        if (faces.length) {
+          const l = Math.min(...faces.map((f) => f.boundingBox.left));
+          const r = Math.max(...faces.map((f) => f.boundingBox.right));
+          const t = Math.min(...faces.map((f) => f.boundingBox.top));
+          const b = Math.max(...faces.map((f) => f.boundingBox.bottom));
+          focusX = (l + r) / 2 / width;
+          // Aim slightly below the faces so heads aren't pressed against the top edge.
+          focusY = Math.min(1, ((t + b) / 2 + (b - t) * 0.35) / height);
+          foundFaces = true;
+        }
+      } catch {
+        /* face detection unavailable; keep the default */
+      }
     }
-    return out;
+
+    let q = 0.82;
+    let dataUrl = canvas.toDataURL("image/jpeg", q);
+    while (dataUrl.length > 1_100_000 && q > 0.4) {
+      q -= 0.1;
+      dataUrl = canvas.toDataURL("image/jpeg", q);
+    }
+    return { dataUrl, width, height, focusX, focusY, foundFaces };
   } finally {
     URL.revokeObjectURL(url);
   }
+}
+
+/** Drag the photo to choose what stays in view; zoom to trim closer. Shows the layout's exact shape. */
+function PhotoFramer({ design, onChange }: { design: CardDesign; onChange: (p: Partial<CardDesign>) => void }) {
+  const boxRef = useRef<HTMLDivElement>(null);
+  const drag = useRef<{ x: number; y: number; fx: number; fy: number } | null>(null);
+  const target = backgroundBoxFor(design.layout);
+  const [boxW, setBoxW] = useState(300);
+
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setBoxW(el.clientWidth));
+    ro.observe(el);
+    setBoxW(el.clientWidth);
+    return () => ro.disconnect();
+  }, []);
+
+  if (!design.background) return null;
+  const boxH = (boxW * target.h) / target.w;
+  const fit = coverBox(design.backgroundWidth, design.backgroundHeight, boxW, boxH, design.focusX, design.focusY, design.zoom);
+
+  const onDown = (e: React.PointerEvent) => {
+    (e.target as Element).setPointerCapture?.(e.pointerId);
+    drag.current = { x: e.clientX, y: e.clientY, fx: design.focusX, fy: design.focusY };
+  };
+  const onMove = (e: React.PointerEvent) => {
+    if (!drag.current) return;
+    const dx = e.clientX - drag.current.x;
+    const dy = e.clientY - drag.current.y;
+    // Dragging the photo right shows more of its left side, so the focus moves left.
+    const fx = Math.min(1, Math.max(0, drag.current.fx - dx / fit.width));
+    const fy = Math.min(1, Math.max(0, drag.current.fy - dy / fit.height));
+    onChange({ focusX: Number(fx.toFixed(3)), focusY: Number(fy.toFixed(3)) });
+  };
+  const onUp = () => { drag.current = null; };
+
+  return (
+    <div className="mt-4 space-y-3">
+      <p className="text-xs font-medium text-stone-600">
+        Adjust photo <span className="font-normal text-stone-400">(drag to move · this box is the exact shape used on the card)</span>
+      </p>
+      <div
+        ref={boxRef}
+        onPointerDown={onDown}
+        onPointerMove={onMove}
+        onPointerUp={onUp}
+        onPointerCancel={onUp}
+        className="relative w-full max-w-sm cursor-grab touch-none select-none overflow-hidden rounded-lg border border-stone-300 bg-stone-100 active:cursor-grabbing"
+        style={{ height: boxH }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={design.background}
+          alt=""
+          draggable={false}
+          className="pointer-events-none absolute max-w-none"
+          style={{ left: fit.left, top: fit.top, width: fit.width, height: fit.height }}
+        />
+        <div className="pointer-events-none absolute inset-0 grid grid-cols-3 grid-rows-3">
+          {Array.from({ length: 9 }).map((_, i) => <div key={i} className="border border-white/25" />)}
+        </div>
+      </div>
+      <label className="block max-w-sm text-xs font-medium text-stone-600">
+        Zoom: {Math.round(design.zoom * 100)}%
+        <input type="range" min={100} max={300} value={Math.round(design.zoom * 100)} onChange={(e) => onChange({ zoom: Number(e.target.value) / 100 })} className="mt-2 w-full accent-[#0A2810]" />
+      </label>
+      <button type="button" onClick={() => onChange({ focusX: 0.5, focusY: 0.33, zoom: 1 })} className="text-xs text-stone-500 underline hover:text-stone-800">Reset framing</button>
+    </div>
+  );
 }
 
 function Section({ title, children, locked }: { title: string; children: React.ReactNode; locked?: boolean }) {
@@ -100,6 +194,7 @@ export default function CardDesignerPage() {
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<{ ok: boolean; text: string; upgrade?: boolean } | null>(null);
   const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoNote, setPhotoNote] = useState<string | null>(null);
 
   // Load
   useEffect(() => {
@@ -181,8 +276,17 @@ export default function CardDesignerPage() {
     if (!file) return;
     setPhotoBusy(true);
     try {
-      const bg = await prepareBackground(file);
-      set({ background: bg, layout: isClassic ? "elegant" : design.layout });
+      const p = await prepareBackground(file);
+      set({
+        background: p.dataUrl,
+        backgroundWidth: p.width,
+        backgroundHeight: p.height,
+        focusX: p.focusX,
+        focusY: p.focusY,
+        zoom: 1,
+        layout: isClassic ? "elegant" : design.layout,
+      });
+      setPhotoNote(p.foundFaces ? "Faces found: the photo is trimmed around them on every layout." : "Photo trimmed around the upper middle. Drag it below if faces are cut off.");
     } catch {
       setSaveMsg({ ok: false, text: "We couldn't read that photo. Please use a JPG or PNG." });
     } finally {
@@ -369,12 +473,14 @@ export default function CardDesignerPage() {
                     <input type="file" accept="image/jpeg,image/png,image/webp,image/*" className="sr-only" onChange={onPhoto} />
                   </label>
                   {design.background && (
-                    <button type="button" onClick={() => set({ background: null })} className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 px-3 py-2.5 text-sm text-stone-700 hover:bg-stone-50">
+                    <button type="button" onClick={() => { set({ background: null }); setPhotoNote(null); }} className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 px-3 py-2.5 text-sm text-stone-700 hover:bg-stone-50">
                       <Trash2 className="h-4 w-4" /> Remove
                     </button>
                   )}
                 </div>
-                <p className="mt-2 text-xs text-stone-400">E.g. a photo of the couple. It&apos;s faded behind the text so everything stays readable.</p>
+                <p className="mt-2 text-xs text-stone-400">E.g. a photo of the couple. Any shape works: it&apos;s trimmed automatically to fit each layout, and faded behind the text so everything stays readable.</p>
+                {photoNote && design.background && <p className="mt-1 text-xs text-emerald-700">{photoNote}</p>}
+                <PhotoFramer design={design} onChange={set} />
                 {design.background && design.layout !== "modern" && (
                   <label className="mt-4 block text-xs font-medium text-stone-600">
                     Fade: {design.backgroundFade}% {design.backgroundFade < 50 && <span className="text-amber-700">(text may be hard to read)</span>}
@@ -418,7 +524,7 @@ export default function CardDesignerPage() {
 
               <button
                 type="button"
-                onClick={() => set({ ...defaultDesign(eventInfo.eventType), layout: design.layout, colors: design.colors, background: design.background })}
+                onClick={() => set({ ...defaultDesign(eventInfo.eventType), layout: design.layout, colors: design.colors, background: design.background, backgroundWidth: design.backgroundWidth, backgroundHeight: design.backgroundHeight, focusX: design.focusX, focusY: design.focusY, zoom: design.zoom })}
                 className="text-xs text-stone-500 underline hover:text-stone-800"
               >
                 Reset wording, fonts and decorations

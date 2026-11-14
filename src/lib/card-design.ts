@@ -25,6 +25,14 @@ export type CardDesign = {
   footer: string;
   background: string | null; // data:image/jpeg URL or Cloudinary https URL
   backgroundFade: number;    // 0–90: how much the paper colour covers the photo
+  /** Size of the stored photo, so it can be fitted to each layout's shape. */
+  backgroundWidth: number;
+  backgroundHeight: number;
+  /** Point to keep in view when trimming (0–1 across / down the photo), e.g. the faces. */
+  focusX: number;
+  focusY: number;
+  /** 1 = just fills the space; up to 3 = zoomed in. */
+  zoom: number;
   ornament: Ornament;
   frame: Frame;
   showVenue: boolean;
@@ -94,6 +102,11 @@ export function defaultDesign(eventType: string, colors?: { primary?: string; se
     footer: "PERSONAL ADMISSION CARD · NOT TRANSFERABLE",
     background: null,
     backgroundFade: 72,
+    backgroundWidth: 1080,
+    backgroundHeight: 1500,
+    focusX: 0.5,
+    focusY: 0.35,
+    zoom: 1,
     ornament: "floral",
     frame: "ornate",
     showVenue: true,
@@ -134,6 +147,32 @@ function str(v: unknown, fallback: string, max: number): string {
   return v.replace(/[\u0000-\u001F\u007F]/g, "").slice(0, max);
 }
 
+function num(v: unknown, fallback: number, min: number, max: number): number {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : fallback;
+}
+
+/**
+ * Where to draw a photo so it fills a box (like CSS "cover"), keeps the focus
+ * point in view and never leaves gaps. Used by the card renderer and the designer.
+ */
+export function coverBox(imgW: number, imgH: number, boxW: number, boxH: number, focusX: number, focusY: number, zoom = 1) {
+  const scale = Math.max(boxW / imgW, boxH / imgH) * Math.max(1, zoom);
+  const width = imgW * scale;
+  const height = imgH * scale;
+  const clamp = (v: number, min: number) => Math.min(0, Math.max(min, v));
+  const left = clamp(boxW / 2 - focusX * width, boxW - width);
+  const top = clamp(boxH / 2 - focusY * height, boxH - height);
+  return { width, height, left, top };
+}
+
+/** The shape (width × height) the background photo fills in each layout. */
+export function backgroundBoxFor(layout: Layout): { w: number; h: number } {
+  if (layout === "modern") return { w: 1080, h: 640 };
+  if (layout === "minimal") return { w: 1080, h: 1500 };
+  return { w: 1020, h: 1440 };
+}
+
 function pick<T extends string>(v: unknown, options: readonly T[], fallback: T): T {
   return options.includes(v as T) ? (v as T) : fallback;
 }
@@ -165,6 +204,12 @@ export function sanitizeDesign(input: unknown, eventType = "OTHER"): CardDesign 
     footer: str(x.footer, d.footer, 70),
     background: isValidBackground(x.background) ? x.background : null,
     backgroundFade: Number.isFinite(fade) ? Math.min(90, Math.max(0, Math.round(fade))) : d.backgroundFade,
+    // Photos saved before trimming existed were already cut to 1080 × 1500.
+    backgroundWidth: num(x.backgroundWidth, 1080, 50, 6000),
+    backgroundHeight: num(x.backgroundHeight, 1500, 50, 6000),
+    focusX: num(x.focusX, d.focusX, 0, 1),
+    focusY: num(x.focusY, d.focusY, 0, 1),
+    zoom: num(x.zoom, 1, 1, 3),
     ornament: pick(x.ornament, ["floral", "lines", "deco", "none"] as const, d.ornament),
     frame: pick(x.frame, ["ornate", "circle", "rounded"] as const, d.frame),
     showVenue: typeof x.showVenue === "boolean" ? x.showVenue : d.showVenue,

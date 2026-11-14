@@ -117,7 +117,8 @@ export function validPhoto(p: string | null | undefined): string | null {
 export function validBackground(p: string | null | undefined): string | null {
   if (!p) return null;
   if (/^data:image\/(jpeg|jpg|png);base64,/.test(p)) return p;
-  if (/^https:\/\/res\.cloudinary\.com\//.test(p)) return p.replace("/upload/", "/upload/f_jpg,w_1080,h_1500,c_fill,g_faces/");
+  // Whole photo, at most 1600px; the layout trims it around the focus point.
+  if (/^https:\/\/res\.cloudinary\.com\//.test(p)) return p.replace("/upload/", "/upload/f_jpg,w_1600,h_1600,c_limit/");
   return null;
 }
 
