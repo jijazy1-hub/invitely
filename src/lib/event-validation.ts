@@ -94,6 +94,32 @@ export function validateEvent(input: Partial<EventInput>, opts: { isNew?: boolea
   return e;
 }
 
+/**
+ * Invite-link name from an event name: "Joe & Fatima's Wedding" → "joe-and-fatimas-wedding".
+ * (Same rules as generateSlug in src/utils/codes.ts, but safe to use in the browser.)
+ */
+export function slugFromName(name: string): string {
+  const s = name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9\s-]/g, "")
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 48)
+    .replace(/-$/, "");
+  return s.length >= 3 ? s : `${s || "event"}-invite`;
+}
+
+/** True if a link was made from this name (optionally with the random suffix added on clashes). */
+export function slugMatchesName(slug: string, name: string): boolean {
+  const base = slugFromName(name);
+  return slug === base || new RegExp(`^${base.replace(/[-]/g, "\\-")}-[a-z0-9]{2,6}$`).test(slug);
+}
+
 /** Turns "YYYY-MM-DD" into a Date at midnight UTC (how event dates are stored). */
 export function toEventDate(v: string): Date {
   return new Date(`${v}T00:00:00Z`);

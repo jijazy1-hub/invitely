@@ -59,17 +59,18 @@ export default function EditEventPage() {
       .catch((err) => setLoadError(err.message));
   }, [eventId]);
 
-  const save = async (v: EventInput): Promise<SubmitResult> => {
+  const save = async (v: EventInput, meta: { slugAuto: boolean }): Promise<SubmitResult> => {
     try {
       const res = await fetch(`/api/events/${eventId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(v),
+        body: JSON.stringify({ ...v, slugAuto: meta.slugAuto }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) return { ok: false, error: data.error, fieldErrors: data.fieldErrors };
       setMeta((m) => (m ? { ...m, name: data.name ?? m.name } : m));
-      setInitial((prev) => (prev ? { ...v, logoUrl: data.logoUrl ?? "" } : prev));
+      // The server may have added a number to the link if it was taken.
+      setInitial((prev) => (prev ? { ...v, slug: data.slug ?? v.slug, logoUrl: data.logoUrl ?? "" } : prev));
       router.refresh();
       return { ok: true };
     } catch {

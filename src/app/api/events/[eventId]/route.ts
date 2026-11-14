@@ -70,11 +70,25 @@ export async function PATCH(req: Request, { params }: Ctx) {
 
     // Custom invite link
     if ("slug" in body && body.slug !== event.slug) {
-      const taken = await prisma.event.findUnique({ where: { slug: String(body.slug) }, select: { id: true } });
+      const isFree = async (s: string) => {
+        const t = await prisma.event.findUnique({ where: { slug: s }, select: { id: true } });
+        return !t || t.id === event.id;
+      };
+      let wanted = String(body.slug);
+      // Link made from the name: add -2, -3… (or the year) instead of failing.
+      if (body.slugAuto === true && !(await isFree(wanted))) {
+        const year = toDateInput(updates.date ?? event.date).slice(0, 4);
+        const options = [`${wanted}-${year}`, ...Array.from({ length: 8 }, (_, i) => `${wanted}-${i + 2}`)];
+        for (const o of options) {
+          if (o.length <= 60 && (await isFree(o))) { wanted = o; break; }
+        }
+        body.slug = wanted;
+      }
+      const taken = await prisma.event.findUnique({ where: { slug: wanted }, select: { id: true } });
       if (taken && taken.id !== event.id) {
         return NextResponse.json({ error: "That link is already used by another event.", fieldErrors: { slug: "That link is already used by another event. Try adding the year, e.g. -2026." } }, { status: 409 });
       }
-      updates.slug = String(body.slug);
+      updates.slug = wanted;
     }
 
     // Logo: "" removes it; a data URL is uploaded to Cloudinary when configured (or kept inline if small).

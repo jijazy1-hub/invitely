@@ -3,10 +3,10 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, ImagePlus, Trash2, AlertTriangle } from "lucide-react";
+import { Loader2, ImagePlus, Trash2, AlertTriangle, RefreshCw } from "lucide-react";
 import type { EventType } from "@/types";
 import { EVENT_TYPE_LABELS, EVENT_TYPE_ICONS } from "@/types";
-import { validateEvent, type EventInput, type FieldErrors } from "@/lib/event-validation";
+import { validateEvent, slugFromName, slugMatchesName, type EventInput, type FieldErrors } from "@/lib/event-validation";
 
 const EVENT_TYPES = Object.entries(EVENT_TYPE_LABELS) as [EventType, string][];
 
@@ -61,7 +61,8 @@ export function EventForm({
   initial: EventInput;
   appUrl?: string;
   hasCustomDesign?: boolean;
-  onSubmit: (values: EventInput) => Promise<SubmitResult>;
+  /** meta.slugAuto: the link was generated from the name, so the server may add a number if it's taken. */
+  onSubmit: (values: EventInput, meta: { slugAuto: boolean }) => Promise<SubmitResult>;
 }) {
   const [form, setForm] = useState<EventInput>(initial);
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -69,6 +70,9 @@ export function EventForm({
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [logoBusy, setLogoBusy] = useState(false);
+  // Keep the link in step with the name while it still matches the name it was made from
+  // (and the organiser hasn't typed their own link).
+  const [linkFollowsName, setLinkFollowsName] = useState(() => mode === "edit" && slugMatchesName(initial.slug, initial.name));
 
   const update = <K extends keyof EventInput>(key: K, value: EventInput[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -77,6 +81,14 @@ export function EventForm({
   };
 
   const slugChanged = mode === "edit" && form.slug !== initial.slug;
+  const suggested = slugFromName(form.name);
+
+  const onNameChange = (name: string) => {
+    update("name", name);
+    if (mode === "edit" && linkFollowsName && name.trim()) {
+      setForm((prev) => ({ ...prev, name, slug: slugFromName(name) }));
+    }
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,7 +105,7 @@ export function EventForm({
     }
     setSaving(true);
     try {
-      const r = await onSubmit(form);
+      const r = await onSubmit(form, { slugAuto: linkFollowsName });
       if (r.ok) {
         setSaved(true);
       } else {
@@ -124,7 +136,7 @@ export function EventForm({
       <input
         type={opts.type ?? "text"}
         value={form[key] as string}
-        onChange={(e) => update(key, e.target.value as never)}
+        onChange={(e) => (key === "name" ? onNameChange(e.target.value) : update(key, e.target.value as never))}
         placeholder={placeholder}
         aria-invalid={!!errors[key]}
         min={opts.type === "date" ? "2000-01-01" : undefined}
@@ -260,16 +272,25 @@ export function EventForm({
               <span className="shrink-0 border-r border-stone-200 bg-stone-100 px-3 py-2.5 text-xs text-stone-500">{(appUrl ?? "").replace(/^https?:\/\//, "")}/invite/</span>
               <input
                 value={form.slug}
-                onChange={(e) => update("slug", e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"))}
+                onChange={(e) => { setLinkFollowsName(false); update("slug", e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-")); }}
                 aria-invalid={!!errors.slug}
                 className="w-full bg-transparent px-3 py-2.5 text-sm text-stone-900 outline-none"
               />
             </div>
           </Field>
+          {form.slug !== suggested && (
+            <button
+              type="button"
+              onClick={() => { setLinkFollowsName(true); update("slug", suggested); }}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#0A2810] hover:underline"
+            >
+              <RefreshCw className="h-3.5 w-3.5" /> Match event name ({suggested})
+            </button>
+          )}
           {slugChanged && (
             <p className="flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-              Changing the link breaks the old one: invite links you&apos;ve already sent, printed check-in posters and staff scanner links will stop working. Re-share them after saving.
+              The link will change from <b>/invite/{initial.slug}</b> to <b>/invite/{form.slug}</b>. Invite links you&apos;ve already sent, printed check-in posters and staff scanner links will stop working, so share the new link after saving.
             </p>
           )}
         </div>
