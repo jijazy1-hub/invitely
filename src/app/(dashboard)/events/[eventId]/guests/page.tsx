@@ -8,6 +8,7 @@ import {
   XCircle, Download, ArrowLeft, FileText, Loader2, Trash2
 } from "lucide-react";
 import Link from "next/link";
+import { nameError, phoneError, emailError, PHONE_FORMAT_HINT, LINE_FORMAT_HINT } from "@/utils/phone";
 
 type Guest = {
   id: string;
@@ -41,6 +42,15 @@ export default function GuestsPage() {
   const [showImport, setShowImport] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [manualError, setManualError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<{ name?: string; phone?: string; email?: string }>({});
+  const [touched, setTouched] = useState<{ name?: boolean; phone?: boolean; email?: boolean }>({});
+  const [manualSuccess, setManualSuccess] = useState<string | null>(null);
+
+  const validateManual = (n = manualName, p = manualPhone, e = manualEmail) => ({
+    name: nameError(n) ?? undefined,
+    phone: phoneError(p) ?? undefined,
+    email: emailError(e) ?? undefined,
+  });
 
   const toReport = (data: any): ImportReport =>
     data?.report ?? { imported: 0, duplicates: 0, invalid: 0, errors: [data?.error || "Import failed. Please try again."] };
@@ -123,7 +133,11 @@ export default function GuestsPage() {
   };
 
   const handleAddManual = async () => {
-    if (!manualName.trim() || !manualPhone.trim()) return;
+    const errs = validateManual();
+    setTouched({ name: true, phone: true, email: true });
+    setFieldErrors(errs);
+    setManualSuccess(null);
+    if (errs.name || errs.phone || errs.email) return;
     setAddingManual(true);
     setManualError(null);
     try {
@@ -133,11 +147,14 @@ export default function GuestsPage() {
         body: JSON.stringify({ name: manualName, phone: manualPhone, email: manualEmail }),
       });
       if (res.ok) {
+        setManualSuccess(`${manualName.trim()} was added.`);
         setManualName(""); setManualPhone(""); setManualEmail("");
+        setTouched({}); setFieldErrors({});
         fetchGuests();
       } else {
         const data = await res.json().catch(() => ({}));
-        setManualError(data.error || "Could not add guest.");
+        if (data.fieldErrors) setFieldErrors(data.fieldErrors);
+        setManualError(data.fieldErrors ? null : data.error || "Could not add guest.");
       }
     } finally {
       setAddingManual(false);
@@ -222,7 +239,8 @@ export default function GuestsPage() {
           {importTab === "text" && (
             <div className="space-y-3">
               <p className="text-xs text-stone-500">
-                Paste names and phone numbers, one per line. Format: <code className="bg-stone-100 px-1 rounded">Name, Phone</code>
+                Paste one guest per line in this format: <code className="bg-stone-100 px-1 rounded">Name, Phone</code> (an email can go third: <code className="bg-stone-100 px-1 rounded">Name, Phone, Email</code>).
+                Phone: {PHONE_FORMAT_HINT}
               </p>
               <textarea
                 value={bulkText}
@@ -245,15 +263,15 @@ export default function GuestsPage() {
           {importTab === "file" && (
             <div className="space-y-3">
               <p className="text-xs text-stone-500">
-                Upload a <strong>.csv</strong>, <strong>.xlsx</strong>, <strong>.txt</strong>, or <strong>.docx</strong> file with guest names and phone numbers.
+                Upload a <strong>.csv</strong>, <strong>.xlsx</strong> or <strong>.txt</strong> file. Column A: name, column B: phone, column C: email (optional). For a Word file, copy the list and use Paste Text.
               </p>
               <label className="flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-stone-200 bg-stone-50 px-6 py-10 cursor-pointer hover:border-[#0A2810]/30 transition-colors">
                 <FileText className="h-8 w-8 text-stone-400" />
                 <span className="text-sm text-stone-600 font-medium">Click to upload file</span>
-                <span className="text-xs text-stone-400">CSV, XLSX, TXT, DOCX supported</span>
+                <span className="text-xs text-stone-400">CSV, XLSX, TXT supported</span>
                 <input
                   type="file"
-                  accept=".csv,.xlsx,.xls,.txt,.docx"
+                  accept=".csv,.xlsx,.xls,.txt"
                   onChange={handleFileImport}
                   className="sr-only"
                   disabled={importing}
@@ -270,35 +288,57 @@ export default function GuestsPage() {
 
           {importTab === "manual" && (
             <div className="space-y-3">
-              <div className="grid grid-cols-3 gap-3">
-                <input
-                  value={manualName}
-                  onChange={(e) => setManualName(e.target.value)}
-                  placeholder="Full name *"
-                  className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm outline-none focus:border-[#0A2810] focus:ring-2 focus:ring-[#0A2810]/10"
-                />
-                <input
-                  value={manualPhone}
-                  onChange={(e) => setManualPhone(e.target.value)}
-                  placeholder="Phone number *"
-                  className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm outline-none focus:border-[#0A2810] focus:ring-2 focus:ring-[#0A2810]/10"
-                />
-                <input
-                  value={manualEmail}
-                  onChange={(e) => setManualEmail(e.target.value)}
-                  placeholder="Email (optional)"
-                  className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm outline-none focus:border-[#0A2810] focus:ring-2 focus:ring-[#0A2810]/10"
-                />
+              <div className="grid gap-3 sm:grid-cols-3">
+                {([
+                  { key: "name", label: "Full name *", value: manualName, set: setManualName, placeholder: "e.g. Adaeze Okafor", type: "text", hint: "Letters only" },
+                  { key: "phone", label: "Phone number *", value: manualPhone, set: setManualPhone, placeholder: "e.g. 08012345678", type: "tel", hint: "11 digits, or +234…" },
+                  { key: "email", label: "Email (optional)", value: manualEmail, set: setManualEmail, placeholder: "e.g. adaeze@gmail.com", type: "email", hint: "name@example.com" },
+                ] as const).map((f) => {
+                  const err = touched[f.key] ? fieldErrors[f.key] : undefined;
+                  return (
+                    <label key={f.key} className="block">
+                      <span className="text-xs font-medium text-stone-600">{f.label}</span>
+                      <input
+                        value={f.value}
+                        type={f.type}
+                        inputMode={f.key === "phone" ? "tel" : undefined}
+                        onChange={(e) => {
+                          f.set(e.target.value);
+                          setManualSuccess(null);
+                          if (touched[f.key]) {
+                            const next = { name: manualName, phone: manualPhone, email: manualEmail, [f.key]: e.target.value };
+                            setFieldErrors(validateManual(next.name, next.phone, next.email));
+                          }
+                        }}
+                        onBlur={() => {
+                          setTouched((t) => ({ ...t, [f.key]: true }));
+                          setFieldErrors(validateManual());
+                        }}
+                        placeholder={f.placeholder}
+                        aria-invalid={!!err}
+                        className={`mt-1 w-full rounded-lg border bg-stone-50 px-3 py-2.5 text-sm outline-none focus:ring-2 ${
+                          err ? "border-red-400 focus:border-red-500 focus:ring-red-100" : "border-stone-200 focus:border-[#0A2810] focus:ring-[#0A2810]/10"
+                        }`}
+                      />
+                      {err ? (
+                        <span className="mt-1 block text-xs text-red-600">{err}</span>
+                      ) : (
+                        <span className="mt-1 block text-xs text-stone-400">{f.hint}</span>
+                      )}
+                    </label>
+                  );
+                })}
               </div>
               <button
                 onClick={handleAddManual}
-                disabled={addingManual || !manualName || !manualPhone}
+                disabled={addingManual}
                 className="inline-flex items-center gap-2 rounded-lg bg-[#0A2810] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#0f3515] disabled:opacity-60 transition-colors"
               >
                 {addingManual ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                 Add Guest
               </button>
               {manualError && <p className="text-sm text-red-600">{manualError}</p>}
+              {manualSuccess && <p className="text-sm text-emerald-700">✓ {manualSuccess}</p>}
             </div>
           )}
 
@@ -310,6 +350,9 @@ export default function GuestsPage() {
               {importReport.duplicates > 0 && <p className="text-amber-700">⚠ {importReport.duplicates} duplicates skipped</p>}
               {importReport.invalid > 0 && <p className="text-red-700">✗ {importReport.invalid} invalid entries skipped</p>}
               {importReport.errors?.map((m) => <p key={m} className="text-red-700">✗ {m}</p>)}
+              {(importReport.invalid > 0 || importReport.imported === 0) && (
+                <p className="pt-2 text-xs text-stone-500">Correct format: <code className="bg-white px-1 rounded border border-stone-200">{LINE_FORMAT_HINT}</code></p>
+              )}
             </div>
           )}
         </div>

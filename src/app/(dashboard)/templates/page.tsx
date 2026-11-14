@@ -2,7 +2,8 @@
 
 // src/app/(dashboard)/templates/page.tsx
 import { useEffect, useState } from "react";
-import { Palette, Lock, Globe, CheckCircle } from "lucide-react";
+import Link from "next/link";
+import { Palette, Lock, Globe, CheckCircle, Loader2, Image as ImageIcon } from "lucide-react";
 
 interface Template {
   id: string;
@@ -143,6 +144,45 @@ export default function TemplatesPage() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<string | null>(null);
   const [filter, setFilter] = useState<string>("ALL");
+  const [events, setEvents] = useState<{ id: string; name: string; templateId: string | null }[]>([]);
+  const [eventId, setEventId] = useState<string>("");
+  const [applying, setApplying] = useState(false);
+  const [applyMsg, setApplyMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/events")
+      .then((r) => r.json())
+      .then((d) => {
+        const list = (d.events ?? []).map((e: any) => ({ id: e.id, name: e.name, templateId: e.templateId ?? null }));
+        setEvents(list);
+        if (list.length) setEventId(list[0].id);
+      })
+      .catch(() => {});
+  }, []);
+
+  const applyTemplate = async () => {
+    if (!selected || !eventId) return;
+    setApplying(true);
+    setApplyMsg(null);
+    try {
+      const res = await fetch(`/api/events/${eventId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ templateId: selected }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setApplyMsg({ ok: false, text: data.error || "Couldn't apply the template." });
+        return;
+      }
+      setEvents((list) => list.map((e) => (e.id === eventId ? { ...e, templateId: selected } : e)));
+      setApplyMsg({ ok: true, text: "Applied. New and re-downloaded cards use this design." });
+    } catch {
+      setApplyMsg({ ok: false, text: "No connection. Please try again." });
+    } finally {
+      setApplying(false);
+    }
+  };
 
   useEffect(() => {
     fetch("/api/templates")
@@ -221,25 +261,53 @@ export default function TemplatesPage() {
               key={t.id}
               template={t}
               selected={selected === t.id}
-              onSelect={() => setSelected(selected === t.id ? null : t.id)}
+              onSelect={() => { setSelected(selected === t.id ? null : t.id); setApplyMsg(null); }}
             />
           ))}
         </div>
       )}
 
-      {/* Selection CTA */}
+      {/* Apply to an event */}
       {selected && (
         <div className="sticky bottom-6 flex justify-center">
-          <div className="rounded-2xl bg-[#0A2810] px-6 py-3 shadow-xl flex items-center gap-4">
-            <span className="text-white text-sm font-medium">
-              Template selected — use it when creating a new event
-            </span>
-            <button
-              onClick={() => setSelected(null)}
-              className="text-white/60 hover:text-white text-xs underline"
-            >
-              Clear
-            </button>
+          <div className="w-full max-w-2xl rounded-2xl bg-[#0A2810] px-5 py-4 shadow-xl">
+            {events.length === 0 ? (
+              <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-white">
+                <span>Create an event first, then apply this design to it.</span>
+                <Link href="/events/new" className="rounded-lg bg-[#D4A843] px-4 py-2 font-semibold text-[#0A2810]">New event</Link>
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="text-sm font-medium text-white">Apply to</span>
+                <select
+                  value={eventId}
+                  onChange={(e) => { setEventId(e.target.value); setApplyMsg(null); }}
+                  className="min-w-0 flex-1 rounded-lg border-0 bg-white/10 px-3 py-2 text-sm text-white outline-none [&>option]:text-stone-900"
+                >
+                  {events.map((e) => (
+                    <option key={e.id} value={e.id}>{e.name}{e.templateId === selected ? " (current)" : ""}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={applyTemplate}
+                  disabled={applying}
+                  className="inline-flex items-center gap-2 rounded-lg bg-[#D4A843] px-4 py-2 text-sm font-bold text-[#0A2810] hover:bg-[#e6b84d] disabled:opacity-60"
+                >
+                  {applying && <Loader2 className="h-4 w-4 animate-spin" />} Apply design
+                </button>
+                <button onClick={() => setSelected(null)} className="text-xs text-white/60 underline hover:text-white">Cancel</button>
+              </div>
+            )}
+            {applyMsg && (
+              <div className={`mt-3 flex flex-wrap items-center gap-3 text-sm ${applyMsg.ok ? "text-emerald-300" : "text-red-300"}`}>
+                <span>{applyMsg.text}</span>
+                {applyMsg.ok && (
+                  <a href={`/api/events/${eventId}/card-preview`} target="_blank" className="inline-flex items-center gap-1 font-semibold text-white underline">
+                    <ImageIcon className="h-4 w-4" /> Preview card
+                  </a>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -20,6 +20,11 @@ Add these, for Production (and Preview if you use it), then redeploy.
 | `FLUTTERWAVE_WEBHOOK_HASH` | any long random string you invent; you paste the same string into Flutterwave |
 | `PAYSTACK_SECRET_KEY` | Paystack dashboard > Settings > API Keys (Secret key) |
 | `CHECKIN_SECRET` | optional; any long random string. Signs the staff check-in links |
+| `RESEND_API_KEY` | resend.com > API Keys. Turns on confirmation emails with the card attached |
+| `EMAIL_FROM` | e.g. `Invitely <invites@yourdomain.com>`; the domain must be verified in Resend > Domains |
+| `NEXT_PUBLIC_SUPPORT_EMAIL` | shown on the home page Support section and in the privacy policy |
+| `NEXT_PUBLIC_SUPPORT_WHATSAPP` | WhatsApp number, digits only, e.g. `2348012345678` |
+| `NEXT_PUBLIC_APP_URL` | your live address, e.g. `https://invitely.ng` (used in emails and QR codes) |
 
 You only need the platform(s) you actually use. A platform with no key is hidden from customers.
 Use the TEST keys first. Nothing needs changing in code to go live: swap in the live keys.

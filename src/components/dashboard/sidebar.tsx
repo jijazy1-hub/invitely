@@ -21,11 +21,27 @@ const navItems = [
   { href: "/settings",    label: "Settings",   icon: Settings },
 ];
 
+/**
+ * Which nav item is current. Any analytics page (including /events/<id>/analytics)
+ * belongs to Analytics; otherwise the longest matching prefix wins.
+ */
+function activeHref(pathname: string, hrefs: string[]): string | null {
+  if (/\/analytics(\/|$)/.test(pathname) && hrefs.includes("/analytics")) return "/analytics";
+  let best: string | null = null;
+  for (const href of hrefs) {
+    if (pathname === href || pathname.startsWith(href + "/")) {
+      if (!best || href.length > best.length) best = href;
+    }
+  }
+  return best;
+}
+
 export function Sidebar({ showAdmin = false }: { showAdmin?: boolean }) {
   const pathname = usePathname();
   const items = showAdmin
     ? [...navItems, { href: "/admin", label: "Admin", icon: ShieldCheck }]
     : navItems;
+  const current = activeHref(pathname ?? "", items.map((i) => i.href));
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -46,7 +62,7 @@ export function Sidebar({ showAdmin = false }: { showAdmin?: boolean }) {
       {/* Nav links */}
       <div className="flex-1 space-y-0.5 px-3 py-4">
         {items.map(({ href, label, icon: Icon }) => {
-          const active = pathname === href || (href !== "/dashboard" && pathname.startsWith(href));
+          const active = href === current;
           return (
             <Link
               key={href}

@@ -6,6 +6,7 @@ import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { authorizeCheckin } from "@/lib/checkin-auth";
+import { storedPhoto } from "@/lib/guest-photo";
 
 export async function GET(req: Request) {
   try {
@@ -56,7 +57,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ status: "invalid", message: "Guest has not confirmed their RSVP.", guest: { name: rsvp.guest.name } });
     }
 
-    const guestInfo = { name: rsvp.guest.name, seatNumber: rsvp.seatNumber ?? undefined };
+    // Photo lets door staff confirm the person matches the card.
+    const guestInfo = { name: rsvp.guest.name, seatNumber: rsvp.seatNumber ?? undefined, photo: storedPhoto(rsvp) };
     const already = (at: Date) =>
       NextResponse.json({
         status: "already_checked_in",

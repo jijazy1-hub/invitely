@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
 import { describeDbError } from "@/lib/plan";
+import { deleteEventPhotos } from "@/lib/guest-photo";
 
 export const dynamic = "force-dynamic";
 
@@ -55,6 +56,32 @@ export async function PATCH(req: Request, { params }: Ctx) {
       }
     }
 
+    // Colours go straight into the card renderer, so only accept #RRGGBB.
+    for (const key of ["primaryColor", "secondaryColor", "accentColor"]) {
+      if (key in updates && !/^#[0-9a-fA-F]{6}$/.test(String(updates[key]))) {
+        return NextResponse.json({ error: `${key} must be a colour like #0A2810.` }, { status: 400 });
+      }
+    }
+
+    // Applying a template: copy its colours onto the event.
+    if ("templateId" in body) {
+      if (body.templateId === null) {
+        updates.templateId = null;
+      } else {
+        const template = await prisma.template.findFirst({
+          where: { id: String(body.templateId), OR: [{ isPublic: true }, { createdBy: userId }] },
+        });
+        if (!template) return NextResponse.json({ error: "Template not found." }, { status: 404 });
+        let config: Record<string, unknown> = {};
+        try { config = JSON.parse(template.config || "{}"); } catch { config = {}; }
+        updates.templateId = template.id;
+        for (const key of ["primaryColor", "secondaryColor", "accentColor"]) {
+          const v = config[key];
+          if (typeof v === "string" && /^#[0-9a-fA-F]{6}$/.test(v)) updates[key] = v;
+        }
+      }
+    }
+
     const updated = await prisma.event.update({
       where: { id: params.eventId },
       data: updates,
@@ -76,6 +103,7 @@ export async function DELETE(_req: Request, { params }: Ctx) {
     const event = await prisma.event.findFirst({ where: { id: params.eventId, userId } });
     if (!event) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+    await deleteEventPhotos(params.eventId);
     await prisma.event.delete({ where: { id: params.eventId } });
     return NextResponse.json({ success: true });
   } catch (err) {

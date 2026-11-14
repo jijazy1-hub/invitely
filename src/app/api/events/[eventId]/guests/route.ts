@@ -5,7 +5,7 @@ import prisma from "@/lib/prisma";
 import { getUserPlan } from "@/lib/plans";
 
 export const dynamic = "force-dynamic";
-import { normalizePhone, isValidPhone } from "@/utils/phone";
+import { normalizePhone, phoneError, nameError, emailError } from "@/utils/phone";
 
 type Ctx = { params: { eventId: string } };
 
@@ -57,13 +57,25 @@ export async function POST(req: Request, { params }: Ctx) {
     }
   }
 
-  const body = await req.json();
-  const name = String(body.name || "").trim();
-  const phone = normalizePhone(String(body.phone || "").trim());
-  const email = body.email ? String(body.email).trim() : null;
+  const body = await req.json().catch(() => ({}));
+  const rawName = String(body.name || "").trim().replace(/\s+/g, " ");
+  const rawPhone = String(body.phone || "").trim();
+  const rawEmail = body.email ? String(body.email).trim() : "";
 
-  if (!name) return NextResponse.json({ error: "Name is required" }, { status: 400 });
-  if (!isValidPhone(phone)) return NextResponse.json({ error: "Invalid phone number" }, { status: 400 });
+  const fieldErrors: Record<string, string> = {};
+  const nErr = nameError(rawName);
+  const pErr = phoneError(rawPhone);
+  const eErr = emailError(rawEmail);
+  if (nErr) fieldErrors.name = nErr;
+  if (pErr) fieldErrors.phone = pErr;
+  if (eErr) fieldErrors.email = eErr;
+  if (Object.keys(fieldErrors).length) {
+    return NextResponse.json({ error: Object.values(fieldErrors)[0], fieldErrors }, { status: 400 });
+  }
+
+  const name = rawName;
+  const phone = normalizePhone(rawPhone);
+  const email = rawEmail || null;
 
   try {
     const guest = await prisma.guest.create({
@@ -72,7 +84,10 @@ export async function POST(req: Request, { params }: Ctx) {
     return NextResponse.json({ guest }, { status: 201 });
   } catch (err: any) {
     if (err.code === "P2002") {
-      return NextResponse.json({ error: "A guest with this phone number already exists" }, { status: 409 });
+      return NextResponse.json(
+        { error: `${phone} is already on this guest list. Each guest needs their own phone number.`, fieldErrors: { phone: `${phone} is already on this guest list.` } },
+        { status: 409 }
+      );
     }
 
     console.error("[GUESTS][POST] Failed:", err);

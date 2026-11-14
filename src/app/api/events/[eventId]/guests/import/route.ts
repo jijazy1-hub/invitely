@@ -1,67 +1,38 @@
 // src/app/api/events/[eventId]/guests/import/route.ts
+// Bulk guest import from pasted text, CSV/TXT or Excel. Every rejected line is
+// reported with what's wrong and the format to use.
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
 import { getUserPlan } from "@/lib/plans";
+import { parseGuestText, parseGuestRows, LINE_FORMAT_HINT, type GuestRow, type ParseResult } from "@/utils/phone";
 
 export const dynamic = "force-dynamic";
-import { normalizePhone, isValidPhone, parseBulkGuestText } from "@/utils/phone";
 
 type Ctx = { params: { eventId: string } };
-type GuestRow = { name: string; phone: string };
+const MAX_ERRORS_SHOWN = 25;
 
-async function verifyOwner(userId: string, eventId: string) {
-  return prisma.event.findFirst({ where: { id: eventId, userId } });
-}
+async function parseFile(file: File): Promise<ParseResult | { error: string }> {
+  const ext = file.name.split(".").pop()?.toLowerCase();
+  const buffer = Buffer.from(await file.arrayBuffer());
 
-function dedupeRows(rows: GuestRow[]): GuestRow[] {
-  const seen = new Set<string>();
-  return rows.filter((r) => {
-    if (seen.has(r.phone)) return false;
-    seen.add(r.phone);
-    return true;
-  });
-}
-
-async function parseFileBuffer(buffer: Buffer, filename: string): Promise<GuestRow[]> {
-  const ext = filename.split(".").pop()?.toLowerCase();
-
-  if (ext === "csv" || ext === "txt") {
-    const text = buffer.toString("utf-8");
-    return parseBulkGuestText(text);
-  }
+  if (ext === "csv" || ext === "txt") return parseGuestText(buffer.toString("utf-8"));
 
   if (ext === "xlsx" || ext === "xls") {
     const XLSX = await import("xlsx");
     const workbook = XLSX.read(buffer, { type: "buffer" });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const rows: any[] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-    const results: GuestRow[] = [];
-    for (const row of rows) {
-      if (!Array.isArray(row) || row.length < 2) continue;
-      const name = String(row[0] || "").trim();
-      const phone = normalizePhone(String(row[1] || "").trim());
-      if (name && isValidPhone(phone)) results.push({ name, phone });
-    }
-    return results;
+    const rows: unknown[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, blankrows: false });
+    // Excel often drops the leading 0 from phone numbers stored as numbers (8012345678);
+    // normalizePhone adds it back for 10-digit numbers.
+    return parseGuestRows(rows.map((r) => (Array.isArray(r) ? r.map((c) => String(c ?? "")) : [])), 1);
   }
 
-  if (ext === "docx") {
-    // Extract plain text from docx by parsing XML
-    const JSZip = (await import("xlsx")).SSF; // fallback: treat as text
-    // Simple approach: convert buffer to string and extract text patterns
-    const text = buffer.toString("latin1");
-    const matches = text.match(/[A-Za-z\s]+,\s*0?\d{10,11}/g) || [];
-    const results: GuestRow[] = [];
-    for (const match of matches) {
-      const [name, phone] = match.split(",").map((s) => s.trim());
-      const normalized = normalizePhone(phone);
-      if (name && isValidPhone(normalized)) results.push({ name, phone: normalized });
-    }
-    return results;
+  if (ext === "docx" || ext === "doc") {
+    return { error: "Word files can't be read reliably. Open the file, copy the guest list, and use Paste Text instead (one guest per line: Name, Phone)." };
   }
 
-  return [];
+  return { error: `".${ext}" files aren't supported. Upload a .csv, .txt or .xlsx file with columns: Name, Phone.` };
 }
 
 // POST /api/events/[eventId]/guests/import
@@ -69,72 +40,86 @@ export async function POST(req: Request, { params }: Ctx) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const event = await verifyOwner(userId, params.eventId);
+  const event = await prisma.event.findFirst({ where: { id: params.eventId, userId } });
   if (!event) return NextResponse.json({ error: "Event not found" }, { status: 404 });
-
-  let parsedRows: GuestRow[] = [];
-  const contentType = req.headers.get("content-type") || "";
-
-  if (contentType.includes("application/json")) {
-    // Text paste import
-    const { text } = await req.json();
-    parsedRows = parseBulkGuestText(String(text || ""));
-  } else {
-    // File import
-    const formData = await req.formData();
-    const file = formData.get("file") as File | null;
-    if (!file) return NextResponse.json({ error: "No file provided" }, { status: 400 });
-
-    const buffer = Buffer.from(await file.arrayBuffer());
-    parsedRows = await parseFileBuffer(buffer, file.name);
-  }
 
   const report = { imported: 0, duplicates: 0, invalid: 0, errors: [] as string[] };
 
-  if (parsedRows.length === 0) {
-    return NextResponse.json({
-      report: { ...report, errors: ["No valid guest entries found in the input"] },
-    });
+  let parsed: ParseResult;
+  let via = "BULK_TEXT";
+  try {
+    const contentType = req.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      const { text } = await req.json().catch(() => ({ text: "" }));
+      parsed = parseGuestText(String(text || ""));
+    } else {
+      const formData = await req.formData();
+      const file = formData.get("file") as File | null;
+      if (!file) return NextResponse.json({ error: "No file provided", report }, { status: 400 });
+      const result = await parseFile(file);
+      if ("error" in result) return NextResponse.json({ error: result.error, report: { ...report, errors: [result.error] } }, { status: 400 });
+      parsed = result;
+      via = file.name.toLowerCase().endsWith(".csv") ? "CSV" : /\.xlsx?$/i.test(file.name) ? "EXCEL" : "TEXT";
+    }
+  } catch (error) {
+    console.error("[IMPORT] parse failed:", error);
+    return NextResponse.json({ error: "We couldn't read that file.", report: { ...report, errors: ["We couldn't read that file. Try saving it as CSV, or paste the list instead."] } }, { status: 400 });
   }
 
-  // Dedupe within this batch
-  const deduped = dedupeRows(parsedRows);
-  report.duplicates += parsedRows.length - deduped.length;
+  report.invalid = parsed.invalid;
+  report.errors = parsed.errors.slice(0, MAX_ERRORS_SHOWN);
+  if (parsed.errors.length > MAX_ERRORS_SHOWN) {
+    report.errors.push(`…and ${parsed.errors.length - MAX_ERRORS_SHOWN} more lines with problems.`);
+  }
 
-  // Check plan limits
+  if (parsed.rows.length === 0) {
+    if (report.errors.length === 0) report.errors.push(`No guests found. Use the format: ${LINE_FORMAT_HINT}`);
+    return NextResponse.json({ report });
+  }
+
+  // Duplicates within this batch
+  const seen = new Set<string>();
+  const unique: GuestRow[] = [];
+  for (const r of parsed.rows) {
+    if (seen.has(r.phone)) report.duplicates++;
+    else {
+      seen.add(r.phone);
+      unique.push(r);
+    }
+  }
+
+  // Already on the guest list
+  const existing = await prisma.guest.findMany({
+    where: { eventId: params.eventId, phone: { in: unique.map((r) => r.phone) } },
+    select: { phone: true },
+  });
+  const existingPhones = new Set(existing.map((g) => g.phone));
+  const fresh = unique.filter((r) => !existingPhones.has(r.phone));
+  report.duplicates += unique.length - fresh.length;
+
+  // Plan limit
   const plan = await getUserPlan(userId);
-  const existingCount = await prisma.guest.count({ where: { eventId: params.eventId } });
-  const limit = plan.maxGuests ?? Infinity;
-  const remaining = limit - existingCount;
-
-  if (remaining <= 0) {
-    return NextResponse.json({
-      error: `You've reached the guest limit for your ${plan.name} plan.`,
-      report,
-    }, { status: 403 });
+  const count = await prisma.guest.count({ where: { eventId: params.eventId } });
+  const remaining = (plan.maxGuests ?? Infinity) - count;
+  if (remaining <= 0 && fresh.length > 0) {
+    return NextResponse.json(
+      { error: `You've reached the ${plan.maxGuests}-guest limit of the ${plan.name} plan. Upgrade to add more.`, report: { ...report, errors: [`You've reached the ${plan.maxGuests}-guest limit of the ${plan.name} plan. Upgrade to add more.`, ...report.errors] } },
+      { status: 403 }
+    );
+  }
+  const toImport = fresh.slice(0, remaining);
+  if (toImport.length < fresh.length) {
+    report.errors.unshift(`${fresh.length - toImport.length} guests were not added: the ${plan.name} plan allows ${plan.maxGuests} guests per event.`);
   }
 
-  // Trim to remaining slots
-  const toImport = deduped.slice(0, remaining);
-
-  // Batch insert — skip existing phones (upsert with skipDuplicates)
-  const results = await prisma.$transaction(
-    toImport.map((g) =>
-      prisma.guest.upsert({
-        where: { eventId_phone: { eventId: params.eventId, phone: g.phone } },
-        update: {},
-        create: {
-          eventId: params.eventId,
-          name: g.name,
-          phone: g.phone,
-          importedVia: "BULK_TEXT",
-        },
-      })
-    )
-  );
-
-  report.imported = results.length;
-  report.duplicates += toImport.length - results.length;
+  if (toImport.length) {
+    const result = await prisma.guest.createMany({
+      data: toImport.map((g) => ({ eventId: params.eventId, name: g.name, phone: g.phone, email: g.email ?? null, importedVia: via })),
+      skipDuplicates: true,
+    });
+    report.imported = result.count;
+    report.duplicates += toImport.length - result.count;
+  }
 
   return NextResponse.json({ report });
 }

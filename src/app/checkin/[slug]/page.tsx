@@ -4,12 +4,13 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { CameraScanner } from "@/components/checkin/camera-scanner";
 import { QrCode, CheckCircle, XCircle, AlertCircle, Loader2, RotateCcw, Lock } from "lucide-react";
 
 type CheckinResult = {
   status: "success" | "already_checked_in" | "invalid" | "declined" | "unauthorized";
   message: string;
-  guest?: { name: string; seatNumber?: number };
+  guest?: { name: string; seatNumber?: number; photo?: string | null };
 };
 
 export default function CheckinPage() {
@@ -147,7 +148,8 @@ export default function CheckinPage() {
       {/* Scanner input */}
       <div className="px-6 mb-6">
         <div className="rounded-2xl bg-white/10 p-6 space-y-4">
-          <p className="text-sm font-medium text-white/80">Scan QR Code or Enter Code Manually</p>
+          <CameraScanner paused={loading} onCode={(c) => handleCheckin(c)} />
+          <p className="text-sm font-medium text-white/80 pt-2">Or type the code / use a USB scanner</p>
           <div className="flex gap-3">
             <input
               ref={inputRef}
@@ -190,12 +192,25 @@ export default function CheckinPage() {
               </p>
             </div>
             {result.guest && (
-              <>
-                <p className="text-xl font-semibold text-white">{result.guest.name}</p>
-                {result.guest.seatNumber && (
-                  <p className="text-white/70 text-sm mt-1">Seat #{result.guest.seatNumber}</p>
+              <div className="mt-3 flex items-center gap-4">
+                {result.guest.photo ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={result.guest.photo} alt={result.guest.name} className="h-24 w-24 shrink-0 rounded-2xl object-cover border-2 border-white/40" />
+                ) : (
+                  <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-3xl font-bold">
+                    {result.guest.name.split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase()).join("")}
+                  </div>
                 )}
-              </>
+                <div>
+                  <p className="text-xl font-semibold text-white">{result.guest.name}</p>
+                  {result.guest.seatNumber && (
+                    <p className="text-white/70 text-sm mt-1">Seat #{result.guest.seatNumber}</p>
+                  )}
+                  {result.status === "success" && result.guest.photo && (
+                    <p className="text-xs text-white/50 mt-1">Check the face matches the guest.</p>
+                  )}
+                </div>
+              </div>
             )}
             <p className="text-white/70 text-sm mt-2">{result.message}</p>
           </div>

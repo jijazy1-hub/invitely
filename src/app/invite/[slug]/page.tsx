@@ -3,7 +3,7 @@
 
 import { useState, useEffect, FormEvent } from "react";
 import { useParams } from "next/navigation";
-import { Loader2, CheckCircle, XCircle, Download, Share2, MessageCircle } from "lucide-react";
+import { Loader2, CheckCircle, XCircle, Download, Share2, MessageCircle, Camera } from "lucide-react";
 import type { PublicEvent, PublicGuest } from "@/types";
 
 function normalizePhone(phone: string) {
@@ -12,6 +12,45 @@ function normalizePhone(phone: string) {
   if (digits.startsWith("0")) return digits;
   if (digits.length === 10) return `0${digits}`;
   return digits;
+}
+
+// Shrinks a photo to a 640px square JPEG in the browser. Phone photos are often
+// 3–8 MB, which is over Vercel's 4.5 MB request limit, so the card would fail.
+async function resizePhoto(file: File, size = 640): Promise<string> {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = () => reject(new Error("decode"));
+      i.src = url;
+    });
+    const side = Math.min(img.naturalWidth, img.naturalHeight);
+    const sx = (img.naturalWidth - side) / 2;
+    const sy = (img.naturalHeight - side) / 2;
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("canvas");
+    ctx.drawImage(img, sx, sy, side, side, 0, 0, size, size);
+    return canvas.toDataURL("image/jpeg", 0.85);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+function PhotoPicker({ onPick, label, color }: { onPick: (e: React.ChangeEvent<HTMLInputElement>) => void; label: string; color: string }) {
+  return (
+    <label
+      className="inline-flex w-full sm:w-auto cursor-pointer items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:opacity-90 focus-within:ring-2 focus-within:ring-offset-2"
+      style={{ background: color }}
+    >
+      <Camera className="h-4 w-4" />
+      {label}
+      <input type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/*" onChange={onPick} className="sr-only" />
+    </label>
+  );
 }
 
 export default function InvitePage() {
@@ -29,6 +68,7 @@ export default function InvitePage() {
   const [isVerifying, setIsVerifying] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [cardEmail, setCardEmail] = useState("");
+  const [photoBusy, setPhotoBusy] = useState(false);
   const [isUnlocking, setIsUnlocking] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -73,7 +113,7 @@ export default function InvitePage() {
       const res = await fetch(`/api/invite/${slug}/rsvp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: guest.phone, email, attendance }),
+        body: JSON.stringify({ phone: guest.phone, email, attendance, photo: image && image !== "skip" ? image : null }),
       });
       const data = await res.json();
       if (!res.ok) { setErrorMessage(data.error); return; }
@@ -127,12 +167,22 @@ export default function InvitePage() {
     window.open(`https://wa.me/?text=${text}`, "_blank");
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = () => setImage(reader.result as string);
-      reader.readAsDataURL(file);
+    e.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/") && !/\.(heic|heif)$/i.test(file.name)) {
+      setErrorMessage("Please choose a photo (JPG or PNG).");
+      return;
+    }
+    setErrorMessage(null);
+    setPhotoBusy(true);
+    try {
+      setImage(await resizePhoto(file));
+    } catch {
+      setErrorMessage("We couldn't read that photo. Please choose a JPG or PNG photo, or take a screenshot of it and use that.");
+    } finally {
+      setPhotoBusy(false);
     }
   };
 
@@ -141,7 +191,7 @@ export default function InvitePage() {
   const secondary = event?.secondaryColor ?? "#B8860B";
 
   const hasResponded = guest?.rsvp?.status && guest.rsvp.status !== "PENDING";
-  const showRsvpForm = Boolean(guest && (image || hasResponded));
+  const showRsvpForm = Boolean(guest && (image || hasResponded || !event?.requirePhoto));
   const needsPhoto = Boolean(guest && !image && !hasResponded && event?.requirePhoto);
 
   if (eventLoading) return (
@@ -243,14 +293,25 @@ export default function InvitePage() {
           {/* Photo upload */}
           {needsPhoto && (
             <div className="mt-8 rounded-2xl p-6 border" style={{ background: bg, borderColor: secondary + "40" }}>
-              <h3 className="font-semibold mb-2" style={{ color: primary }}>Upload Your Photo</h3>
-              <p className="text-sm text-stone-500 mb-4">A recent photo is required for your admission card.</p>
-              <input
-                type="file" accept="image/*"
-                onChange={handleImageUpload}
-                className="w-full text-sm text-stone-600 file:mr-4 file:rounded-xl file:border-0 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white file:cursor-pointer"
-                style={{ "--file-bg": primary } as any}
-              />
+              <h3 className="font-semibold mb-2" style={{ color: primary }}>Add Your Photo</h3>
+              <p className="text-sm text-stone-500 mb-4">A clear, recent photo of your face is required. It goes on your admission card and is shown to ushers when you check in.</p>
+              {photoBusy ? (
+                <div className="flex items-center gap-2 text-sm text-stone-600"><Loader2 className="h-4 w-4 animate-spin" /> Preparing photo…</div>
+              ) : (
+                <PhotoPicker onPick={handleImageUpload} label="Choose your photo" color={primary} />
+              )}
+            </div>
+          )}
+
+          {/* Photo optional for this event */}
+          {guest && !image && !hasResponded && event && !event.requirePhoto && (
+            <div className="mt-6 rounded-2xl p-5 border" style={{ background: bg, borderColor: secondary + "40" }}>
+              <p className="text-sm text-stone-600 mb-3">Add a photo to your admission card <span className="text-stone-400">(optional)</span></p>
+              {photoBusy ? (
+                <div className="flex items-center gap-2 text-sm text-stone-600"><Loader2 className="h-4 w-4 animate-spin" /> Preparing photo…</div>
+              ) : (
+                <PhotoPicker onPick={handleImageUpload} label="Choose your photo" color={primary} />
+              )}
             </div>
           )}
 
@@ -260,8 +321,12 @@ export default function InvitePage() {
               <h3 className="font-semibold mb-2" style={{ color: primary }}>
                 Update Photo <span className="text-sm font-normal text-stone-500">(optional)</span>
               </h3>
-              <div className="flex flex-col gap-3">
-                <input type="file" accept="image/*" onChange={handleImageUpload} className="text-sm text-stone-600" />
+              <div className="flex flex-col sm:flex-row gap-3">
+                {photoBusy ? (
+                  <div className="flex items-center gap-2 text-sm text-stone-600"><Loader2 className="h-4 w-4 animate-spin" /> Preparing photo…</div>
+                ) : (
+                  <PhotoPicker onPick={handleImageUpload} label="Choose a photo" color={primary} />
+                )}
                 <button
                   type="button"
                   onClick={() => setImage("skip")}
@@ -277,9 +342,14 @@ export default function InvitePage() {
           {showRsvpForm && (
             <div className="mt-8 rounded-2xl p-6 border" style={{ borderColor: secondary + "40" }}>
               <div className="flex items-center gap-3 mb-6">
-                <div className="h-12 w-12 rounded-full flex items-center justify-center font-bold text-white text-lg" style={{ background: primary }}>
-                  {guest!.name[0]}
-                </div>
+                {image && image !== "skip" ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={image} alt="" className="h-12 w-12 rounded-full object-cover border-2" style={{ borderColor: secondary }} />
+                ) : (
+                  <div className="h-12 w-12 rounded-full flex items-center justify-center font-bold text-white text-lg" style={{ background: primary }}>
+                    {guest!.name[0]}
+                  </div>
+                )}
                 <div>
                   <p className="font-semibold text-stone-900">{guest!.name}</p>
                   <p className="text-sm text-stone-500">{guest!.phone}</p>

@@ -1,4 +1,12 @@
 // next.config.js
+const CARD_FONTS = [
+  ...["latin", "latin-ext", "vietnamese"].flatMap((subset) =>
+    ["400", "700"].map((w) => `./node_modules/@fontsource/inter/files/inter-${subset}-${w}-normal.woff`)
+  ),
+  "./node_modules/@fontsource/cormorant-garamond/files/cormorant-garamond-latin-700-normal.woff",
+  "./node_modules/@fontsource/cormorant-garamond/files/cormorant-garamond-latin-ext-700-normal.woff",
+];
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
@@ -6,13 +14,12 @@ const nextConfig = {
   },
   experimental: {
     serverComponentsExternalPackages: ["@prisma/client", "prisma"],
-    // The admission-card route reads font files from node_modules at runtime.
-    // Without this, Vercel does not ship them and the card falls back to a plain font.
+    // Card rendering reads font files from node_modules at runtime. Without this,
+    // Vercel does not ship them and names/titles fall back to a plain font.
     outputFileTracingIncludes: {
-      "/api/invite/[slug]/generate-card": [
-        "./node_modules/@fontsource/cormorant-garamond/files/cormorant-garamond-latin-400-normal.woff",
-        "./node_modules/@fontsource/cormorant-garamond/files/cormorant-garamond-latin-700-normal.woff",
-      ],
+      "/api/invite/[slug]/generate-card": CARD_FONTS,
+      "/api/invite/[slug]/rsvp": CARD_FONTS,
+      "/api/events/[eventId]/card-preview": CARD_FONTS,
     },
   },
 };

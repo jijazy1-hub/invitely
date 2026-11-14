@@ -5,9 +5,15 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { normalizePhone } from "@/utils/phone";
 import { recordRsvp } from "@/lib/rsvp";
+import { sendConfirmationEmail } from "@/lib/confirmation-email";
+import { emailConfigured } from "@/lib/email";
+import { saveGuestPhoto, isPhotoDataUrl } from "@/lib/guest-photo";
 import { rateLimit, clientIp, MINUTE } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+// Rendering the card for the email attachment takes a second or two.
+export const maxDuration = 30;
 
 type Ctx = { params: { slug: string } };
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -21,6 +27,8 @@ export async function POST(req: Request, { params }: Ctx) {
     const phone = normalizePhone(String(body.phone || "").trim());
     const email = String(body.email || "").trim();
     const attendance = String(body.attendance || "").trim();
+    // Optional photo (already shrunk by the browser) so the emailed card matches the downloaded one.
+    const photo = isPhotoDataUrl(body.photo) ? body.photo : null;
 
     if (!phone || !email || !attendance) {
       return NextResponse.json({ error: "Phone, email, and attendance are required." }, { status: 400 });
@@ -51,10 +59,25 @@ export async function POST(req: Request, { params }: Ctx) {
       );
     }
 
+    // Keep the photo so it can be shown at check-in and on re-downloaded cards.
+    if (willAttend && photo) await saveGuestPhoto(guest.id, photo);
+
+    let emailSent = false;
+    if (willAttend && emailConfigured()) {
+      try {
+        emailSent = await sendConfirmationEmail(guest.id, photo);
+      } catch (error) {
+        console.error("[RSVP] confirmation email failed:", error);
+      }
+    }
+
     return NextResponse.json({
       guest: { id: guest.id, name: guest.name, phone: guest.phone, rsvp: result.rsvp },
+      emailSent,
       message: willAttend
-        ? "RSVP confirmed! Your admission card is ready to download."
+        ? emailSent
+          ? `RSVP confirmed! We've emailed your card and check-in code to ${email}. You can also download it below.`
+          : "RSVP confirmed! Your admission card is ready to download."
         : "Sorry you can't make it! Thank you for letting us know.",
     });
   } catch (err) {

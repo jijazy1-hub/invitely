@@ -1,6 +1,15 @@
 import Link from "next/link";
+import { site, whatsappLink } from "@/lib/site";
+
+const FAQ = [
+  { q: "How do guests get their admission card?", a: "They open your invite link, confirm with the phone number you added, and download their card. If email is set up, the card and check-in code are also emailed to them." },
+  { q: "A guest lost their card. What should they do?", a: "Open the invite link again, enter the same phone number, then the email they used when confirming. They can download the card again." },
+  { q: "How does check-in work at the venue?", a: "Print the check-in poster from your event page. Guests scan it and enter their code, or your door staff scan guests' cards with the staff scanner on any phone." },
+  { q: "How do I upgrade or get a refund?", a: "Upgrade from Billing in your dashboard. For payment problems or refunds, contact us below with your payment reference." },
+];
 
 export default function LandingPage() {
+  const wa = whatsappLink();
   return (
     <main className="min-h-screen" style={{ backgroundColor: "#FAFAF8", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
       <style>{`
@@ -119,6 +128,23 @@ export default function LandingPage() {
         .cta-sub { color: #6B6B8A; font-size: 1.05rem; margin-bottom: 2.5rem; line-height: 1.65; }
         .cta-actions { display: flex; justify-content: center; gap: 1rem; flex-wrap: wrap; }
 
+        .support { background: #fff; border-top: 1px solid #EBEBEB; padding: 5rem 2.5rem; }
+        .support-inner { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: 1.3fr 1fr; gap: 3.5rem; }
+        .faq-item { border-bottom: 1px solid #EBEBEB; padding: 1.1rem 0; }
+        .faq-item summary { cursor: pointer; font-weight: 600; color: #1A1A2E; font-size: 0.98rem; list-style: none; display: flex; justify-content: space-between; gap: 1rem; }
+        .faq-item summary::after { content: '+'; color: #F05537; font-weight: 700; }
+        .faq-item[open] summary::after { content: '–'; }
+        .faq-item p { color: #6B6B8A; font-size: 0.92rem; line-height: 1.65; margin-top: 0.6rem; }
+        .contact-card { background: #FAFAF8; border: 1.5px solid #EBEBEB; border-radius: 24px; padding: 2rem; align-self: start; }
+        .contact-title { font-family: 'Fraunces', serif; font-size: 1.5rem; font-weight: 700; color: #1A1A2E; margin-bottom: 0.5rem; }
+        .contact-sub { color: #6B6B8A; font-size: 0.92rem; line-height: 1.6; margin-bottom: 1.5rem; }
+        .contact-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.9rem 1rem; border-radius: 14px; background: #fff; border: 1px solid #EBEBEB; text-decoration: none; color: #1A1A2E; font-weight: 600; font-size: 0.92rem; margin-bottom: 0.75rem; transition: border-color 0.2s; }
+        .contact-row:hover { border-color: #F05537; }
+        .contact-row small { display: block; color: #9090A8; font-weight: 500; font-size: 0.78rem; }
+        .contact-icon { width: 38px; height: 38px; border-radius: 10px; background: #FFF0EC; color: #F05537; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .contact-note { color: #9090A8; font-size: 0.8rem; line-height: 1.5; margin-top: 0.5rem; }
+        @media (max-width: 900px) { .support-inner { grid-template-columns: 1fr; } }
+
         footer { background: #1A1A2E; padding: 3rem 2.5rem; }
         .footer-inner { max-width: 1200px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1.5rem; }
         .footer-logo { font-family: 'Fraunces', serif; font-weight: 700; font-size: 1.25rem; color: #fff; text-decoration: none; }
@@ -153,6 +179,7 @@ export default function LandingPage() {
           <Link href="#features" className="nav-link">Features</Link>
           <Link href="#how-it-works" className="nav-link">How it works</Link>
           <Link href="#pricing" className="nav-link">Pricing</Link>
+          <Link href="#support" className="nav-link">Support</Link>
           <Link href="/sign-in" className="nav-link">Sign in</Link>
         </div>
         <Link href="/sign-up" className="nav-cta">
@@ -316,7 +343,7 @@ export default function LandingPage() {
           <p className="section-sub" style={{margin: "0 auto"}}>Start free, upgrade when you need more. No hidden fees, ever.</p>
           <div className="pricing-grid" style={{marginTop: "3.5rem"}}>
             {[
-              { name: "Free", price: "₦0", period: "forever", popular: false, features: ["1 event", "Up to 50 guests", "QR check-in", "Basic analytics", "Invite page"], btn: "Get started", btnClass: "" },
+              { name: "Free", price: "₦0", period: "forever", popular: false, features: ["1 event", "Up to 50 guests", "QR check-in", "Admission cards by email", "Invite page"], btn: "Get started", btnClass: "" },
               { name: "Basic", price: "₦5,000", period: "per month", popular: true, features: ["Up to 5 events", "Up to 500 guests", "QR check-in", "Full analytics", "Custom branding", "Priority support"], btn: "Start free trial", btnClass: "primary" },
               { name: "Premium", price: "₦15,000", period: "per month", popular: false, features: ["Unlimited events", "Unlimited guests", "Everything in Basic", "White-label", "API access", "Dedicated support"], btn: "Contact us", btnClass: "" },
             ].map((p) => (
@@ -348,16 +375,64 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Support */}
+      <section className="support" id="support">
+        <div className="support-inner">
+          <div>
+            <div className="section-label">Support</div>
+            <h2 className="section-title">Questions? <em>We&apos;re here.</em></h2>
+            <div style={{ marginTop: "1.5rem" }}>
+              {FAQ.map((f) => (
+                <details key={f.q} className="faq-item">
+                  <summary>{f.q}</summary>
+                  <p>{f.a}</p>
+                </details>
+              ))}
+            </div>
+          </div>
+          <div className="contact-card">
+            <div className="contact-title">Contact support</div>
+            <p className="contact-sub">Organisers and guests can reach us for help with events, cards, check-in or payments.</p>
+            {site.supportEmail && (
+              <a className="contact-row" href={`mailto:${site.supportEmail}?subject=${encodeURIComponent("Invitely support request")}`}>
+                <span className="contact-icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></svg>
+                </span>
+                <span><small>Email</small>{site.supportEmail}</span>
+              </a>
+            )}
+            {wa && (
+              <a className="contact-row" href={wa} target="_blank" rel="noopener noreferrer">
+                <span className="contact-icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-12.4 7.4L3 20.5l1.6-5.4A8.4 8.4 0 1 1 21 11.5z"/></svg>
+                </span>
+                <span><small>WhatsApp</small>{site.supportPhone || `+${site.supportWhatsapp}`}</span>
+              </a>
+            )}
+            {site.supportPhone && !wa && (
+              <a className="contact-row" href={`tel:${site.supportPhone.replace(/[^\d+]/g, "")}`}>
+                <span className="contact-icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg>
+                </span>
+                <span><small>Phone</small>{site.supportPhone}</span>
+              </a>
+            )}
+            <p className="contact-note">We usually reply within one working day (Mon–Sat, 9am–6pm WAT). For payment issues, include your payment reference.</p>
+          </div>
+        </div>
+      </section>
+
       {/* Footer */}
       <footer>
         <div className="footer-inner">
           <Link href="/" className="footer-logo">Invitely</Link>
           <div className="footer-links">
-            <a href="#" className="footer-link">Privacy</a>
-            <a href="#" className="footer-link">Terms</a>
-            <a href="#" className="footer-link">Support</a>
+            <Link href="/privacy" className="footer-link">Privacy Policy</Link>
+            <Link href="/terms" className="footer-link">Terms</Link>
+            <Link href="#support" className="footer-link">Support</Link>
+            {site.supportEmail && <a href={`mailto:${site.supportEmail}`} className="footer-link">{site.supportEmail}</a>}
           </div>
-          <div className="footer-copy">© 2025 Invitely. All rights reserved.</div>
+          <div className="footer-copy">© {new Date().getFullYear()} {site.companyName}. All rights reserved.</div>
         </div>
       </footer>
     </main>
