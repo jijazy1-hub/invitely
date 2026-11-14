@@ -5,6 +5,7 @@ import { useState, useEffect, FormEvent } from "react";
 import { useParams } from "next/navigation";
 import { Loader2, CheckCircle, XCircle, Download, Share2, MessageCircle, Camera } from "lucide-react";
 import type { PublicEvent, PublicGuest } from "@/types";
+import { CardDownloadModal, triggerDownload, type DownloadState } from "@/components/invite/card-download-modal";
 
 function normalizePhone(phone: string) {
   const digits = phone.replace(/\D/g, "");
@@ -72,6 +73,11 @@ export default function InvitePage() {
   const [isUnlocking, setIsUnlocking] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [download, setDownload] = useState<DownloadState>({ phase: "idle" });
+  const [hasDownloaded, setHasDownloaded] = useState(false);
+
+  // Free the previous card file when a new one is made or the page closes.
+  useEffect(() => () => { if (download.phase === "ready") URL.revokeObjectURL(download.url); }, [download]);
 
   useEffect(() => {
     fetch(`/api/invite/${slug}/event`)
@@ -145,22 +151,33 @@ export default function InvitePage() {
 
   const downloadCard = async () => {
     if (!guest?.rsvp?.uniqueCode) { setErrorMessage("No admission code found."); return; }
-    setStatusMessage("Preparing your card…");
+    if (download.phase === "preparing") return;
+    setErrorMessage(null);
+    setStatusMessage(null);
+    setDownload({ phase: "preparing" });
     try {
       const res = await fetch(`/api/invite/${slug}/generate-card`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code: guest.rsvp.uniqueCode, imageBase64: image === "skip" ? null : image }),
       });
-      if (!res.ok) { const b = await res.json().catch(() => ({})); setErrorMessage(b.error || "Failed to generate card"); setStatusMessage(null); return; }
+      if (!res.ok) {
+        const b = await res.json().catch(() => ({}));
+        setDownload({ phase: "error", message: b.error || "We couldn't create your card. Please try again." });
+        return;
+      }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url; a.download = `${guest.name.replace(/\s+/g, "_")}-invite-card.png`;
-      a.click(); URL.revokeObjectURL(url);
-      setStatusMessage("Your card is ready!");
-    } catch (err) { setErrorMessage("Download failed. Please try again."); setStatusMessage(null); }
+      const fileName = `${guest.name.replace(/[^\w]+/g, "_")}-admission-card.png`;
+      // Keep the file alive (the old code freed it straight away, so some phones saved nothing).
+      setDownload({ phase: "ready", url, blob, fileName });
+      setHasDownloaded(true);
+      triggerDownload(url, fileName);
+    } catch {
+      setDownload({ phase: "error", message: "No internet connection. Check your connection and try again." });
+    }
   };
+
 
   const shareWhatsApp = () => {
     const text = encodeURIComponent(`You're invited to ${event?.name}!\n\nRSVP here: ${window.location.href}`);
@@ -212,7 +229,13 @@ export default function InvitePage() {
   const eventDate = new Date(event.date).toLocaleDateString("en-NG", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
 
   return (
-    <main className="min-h-screen py-12 px-4" style={{ background: bg }}>
+    <main className="min-h-screen py-8 px-4 sm:py-12" style={{ background: bg }}>
+      <CardDownloadModal
+        state={download}
+        color={primary}
+        onClose={() => setDownload((d) => (d.phase === "preparing" ? d : { phase: "idle" }))}
+        onRetry={downloadCard}
+      />
       <div className="mx-auto max-w-2xl space-y-6">
         {/* Hero card */}
         <section className="rounded-3xl bg-white/90 backdrop-blur p-10 shadow-xl text-center border" style={{ borderColor: secondary + "40" }}>
@@ -399,11 +422,22 @@ export default function InvitePage() {
                       )}
                       <button
                         onClick={downloadCard}
-                        className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition"
+                        disabled={download.phase === "preparing"}
+                        aria-busy={download.phase === "preparing"}
+                        className={`flex w-full items-center justify-center gap-3 rounded-2xl px-6 py-4 text-base font-bold text-white shadow-lg transition active:scale-[0.98] disabled:cursor-wait sm:w-auto sm:min-w-[300px] ${download.phase === "preparing" ? "animate-pulse" : "hover:brightness-110"}`}
                         style={{ background: primary }}
                       >
-                        <Download className="h-4 w-4" /> Download Admission Card
+                        {download.phase === "preparing" ? (
+                          <><Loader2 className="h-5 w-5 animate-spin" /> Downloading your card…</>
+                        ) : hasDownloaded ? (
+                          <><Download className="h-5 w-5" /> Download card again</>
+                        ) : (
+                          <><Download className="h-5 w-5" /> Download Admission Card</>
+                        )}
                       </button>
+                      {hasDownloaded && download.phase !== "preparing" && (
+                        <p className="mt-2 text-xs text-emerald-700">✓ Card downloaded. Check your Downloads or Photos.</p>
+                      )}
                     </>
                   ) : (
                     <form onSubmit={unlockCard} className="space-y-3">

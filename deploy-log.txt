@@ -1,15 +1,14 @@
 
 ━━━ 1/7 Finding the zip
-✅ /workspaces/invitely/invitely-update-v10.zip
+✅ /workspaces/invitely/invitely-update-v11.zip
 
 ━━━ 2/7 Finding the project
-✅ Folder: /workspaces/invitely
-✅ Repo:   https://github.com/jijazy1-hub/invitely   Branch: main
+✅ /workspaces/invitely  (https://github.com/jijazy1-hub/invitely, branch main)
 
 ━━━ 3/7 Unzipping
 ✅ Files updated
 
-━━━ 4/7 Installing packages (takes a minute)
+━━━ 4/7 Installing packages
 
 > invitely@1.0.0 postinstall
 > prisma generate
@@ -17,11 +16,11 @@
 Environment variables loaded from .env
 Prisma schema loaded from prisma/schema.prisma
 
-✔ Generated Prisma Client (v5.22.0) to ./node_modules/@prisma/client in 173ms
+✔ Generated Prisma Client (v5.22.0) to ./node_modules/@prisma/client in 185ms
 
 Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
 
-Tip: Need your database queries to be 1000x faster? Accelerate offers you that and more: https://pris.ly/tip-2-accelerate
+Tip: Want real-time updates to your database without manual polling? Discover how with Pulse: https://pris.ly/tip-0-pulse
 
 
 up to date in 2s
@@ -38,7 +37,7 @@ npm warn install-scripts Run `npm install-scripts ls` to review, or `npm install
 Environment variables loaded from .env
 Prisma schema loaded from prisma/schema.prisma
 
-✔ Generated Prisma Client (v5.22.0) to ./node_modules/@prisma/client in 175ms
+✔ Generated Prisma Client (v5.22.0) to ./node_modules/@prisma/client in 197ms
 
 Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
 
