@@ -3,10 +3,11 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
-import { QrCode, CheckCircle, XCircle, AlertCircle, Loader2, RotateCcw } from "lucide-react";
+import Link from "next/link";
+import { QrCode, CheckCircle, XCircle, AlertCircle, Loader2, RotateCcw, Lock } from "lucide-react";
 
 type CheckinResult = {
-  status: "success" | "already_checked_in" | "invalid" | "declined";
+  status: "success" | "already_checked_in" | "invalid" | "declined" | "unauthorized";
   message: string;
   guest?: { name: string; seatNumber?: number };
 };
@@ -17,18 +18,30 @@ export default function CheckinPage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<CheckinResult | null>(null);
   const [stats, setStats] = useState({ checkedIn: 0, total: 0 });
+  const [denied, setDenied] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Staff link key (?key=...). Sent as a header so it isn't repeated in every URL.
+  const keyRef = useRef<string | null>(null);
+
+  const authHeaders = (): Record<string, string> =>
+    keyRef.current ? { "x-checkin-key": keyRef.current } : {};
 
   useEffect(() => {
-    fetchStats();
+    keyRef.current = new URLSearchParams(window.location.search).get("key");
+    fetchStats().finally(() => setReady(true));
     // Auto-focus input for QR scanner
     inputRef.current?.focus();
   }, []);
 
   const fetchStats = async () => {
     try {
-      const res = await fetch(`/api/checkin?slug=${slug}`);
+      const res = await fetch(`/api/checkin?slug=${encodeURIComponent(slug)}`, { headers: authHeaders() });
       const data = await res.json();
+      if (res.status === 401 || res.status === 403 || res.status === 404) {
+        setDenied(data.error ?? "You don't have access to this scanner.");
+        return;
+      }
       setStats({ checkedIn: data.checkedIn ?? 0, total: data.total ?? 0 });
     } catch {}
   };
@@ -43,10 +56,11 @@ export default function CheckinPage() {
     try {
       const res = await fetch("/api/checkin", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({ slug, code: useCode }),
       });
       const data = await res.json();
+      if (data.status === "unauthorized") { setDenied(data.message); return; }
       setResult(data);
       setCode("");
       fetchStats();
@@ -62,6 +76,32 @@ export default function CheckinPage() {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") handleCheckin();
   };
+
+  if (!ready) {
+    return (
+      <div className="min-h-screen bg-[#0A2810] flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-[#D4A843]" />
+      </div>
+    );
+  }
+
+  if (denied) {
+    return (
+      <div className="min-h-screen bg-[#0A2810] text-white flex items-center justify-center p-6">
+        <div className="max-w-sm text-center space-y-4">
+          <Lock className="h-10 w-10 text-[#D4A843] mx-auto" />
+          <p className="text-xl font-bold">Check-in is restricted</p>
+          <p className="text-sm text-white/70">{denied}</p>
+          <Link
+            href={`/sign-in?redirect_url=${encodeURIComponent(`/checkin/${slug}`)}`}
+            className="inline-block rounded-xl bg-[#D4A843] px-5 py-3 text-sm font-bold text-[#0A2810] hover:bg-[#e6b84d]"
+          >
+            Organiser sign in
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0A2810] text-white flex flex-col">
@@ -114,7 +154,7 @@ export default function CheckinPage() {
               value={code}
               onChange={(e) => setCode(e.target.value.toUpperCase())}
               onKeyDown={handleKeyDown}
-              placeholder="e.g. INV-A3X7P2"
+              placeholder="e.g. INV-A3X7P2KQ"
               className="flex-1 rounded-xl bg-white/10 border border-white/20 px-4 py-3 text-sm font-mono text-white placeholder:text-white/30 outline-none focus:border-[#D4A843] focus:ring-2 focus:ring-[#D4A843]/20"
             />
             <button

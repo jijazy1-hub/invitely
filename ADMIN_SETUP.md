@@ -1,21 +1,14 @@
 # Invitely admin: setup (about 15 minutes)
 
 ## 1. Database (Supabase)
-Supabase > SQL Editor > New query > paste `migration_admin.sql` > Run.
-It only adds things (two columns, two tables), so it is safe on your live data.
+Supabase > SQL Editor > New query > paste the whole of `supabase/schema.sql` > Run.
+It only adds what's missing (IF NOT EXISTS), so it is safe on your live data.
 
 ## 2. Schema
-Open `schema_additions.prisma.txt` and copy the two changes into `prisma/schema.prisma`
-(the datasource block stays as it is).
+Nothing to do: `prisma/schema.prisma` already includes the Payment and PlanConfig models.
 
 ## 3. Code
-Unzip `admin-update-files.zip` into your `invitely/` app folder, merging and overwriting.
-(Paths inside the zip are already relative to that folder.)
-Then, from /workspaces/invitely:
-
-    git add .
-    git commit -m "Add admin dashboard, payments (Flutterwave/Paystack), analytics page"
-    git push
+Commit and push; Vercel deploys automatically.
 
 ## 4. Environment variables (Vercel > Settings > Environment Variables)
 Add these, for Production (and Preview if you use it), then redeploy.
@@ -26,6 +19,7 @@ Add these, for Production (and Preview if you use it), then redeploy.
 | `FLUTTERWAVE_SECRET_KEY` | Flutterwave dashboard > Settings > API Keys (Secret key) |
 | `FLUTTERWAVE_WEBHOOK_HASH` | any long random string you invent; you paste the same string into Flutterwave |
 | `PAYSTACK_SECRET_KEY` | Paystack dashboard > Settings > API Keys (Secret key) |
+| `CHECKIN_SECRET` | optional; any long random string. Signs the staff check-in links |
 
 You only need the platform(s) you actually use. A platform with no key is hidden from customers.
 Use the TEST keys first. Nothing needs changing in code to go live: swap in the live keys.

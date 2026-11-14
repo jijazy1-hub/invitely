@@ -40,3 +40,6 @@ node_modules
 # real secrets / paste-files
 .env.vercel
 .env.local
+
+# typescript build cache
+*.tsbuildinfo

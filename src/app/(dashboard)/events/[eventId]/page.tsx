@@ -8,6 +8,7 @@ import prisma from "@/lib/prisma";
 import { formatDate } from "@/lib/utils";
 import { PublishToggle } from "@/components/events/publish-toggle";
 import CopyButton from "@/components/events/copy-button";
+import { staffKeyFor } from "@/lib/checkin-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -71,7 +72,12 @@ export default async function EventPage({ params }: { params: { eventId: string 
 
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://invitely-nine.vercel.app";
   const inviteUrl = `${baseUrl}/invite/${event.slug}`;
-  const checkinUrl = `${baseUrl}/checkin/${event.slug}`;
+  // Staff link: lets door staff check guests in without an account. Only the
+  // organiser sees it here; anyone holding it can check guests in for this event.
+  const staffKey = staffKeyFor(event.id);
+  const checkinUrl = staffKey
+    ? `${baseUrl}/checkin/${event.slug}?key=${staffKey}`
+    : `${baseUrl}/checkin/${event.slug}`;
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-8">
@@ -108,6 +114,10 @@ export default async function EventPage({ params }: { params: { eventId: string 
               </Link>
             </div>
           </div>
+          <p className="text-xs text-stone-500">
+            The check-in link above is for your door staff. Anyone who has it can check guests in, so only share it with people working the door.
+            You can also open the scanner yourself while signed in.
+          </p>
         </div>
       </div>
 

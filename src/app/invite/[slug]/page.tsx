@@ -28,6 +28,8 @@ export default function InvitePage() {
 
   const [isVerifying, setIsVerifying] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [cardEmail, setCardEmail] = useState("");
+  const [isUnlocking, setIsUnlocking] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -55,8 +57,8 @@ export default function InvitePage() {
       const data = await res.json();
       if (!res.ok) { setErrorMessage(data.error); return; }
       setGuest(data.guest);
-      setEmail(data.guest.email || "");
-      if (data.guest.rsvp?.status === "CONFIRMED") setStatusMessage("You have already confirmed your RSVP. Download your card below.");
+      setEmail("");
+      if (data.guest.rsvp?.status === "CONFIRMED") setStatusMessage("You have already confirmed your RSVP. Enter the email you used when you confirmed to get your card.");
       if (data.guest.rsvp?.status === "DECLINED") setStatusMessage("Your response has been recorded as declined. Thank you.");
     } catch { setErrorMessage("Unable to reach the server. Please try again."); }
     finally { setIsVerifying(false); }
@@ -79,6 +81,26 @@ export default function InvitePage() {
       setStatusMessage(data.message);
     } catch { setErrorMessage("Unable to submit. Please try again."); }
     finally { setIsSubmitting(false); }
+  };
+
+  // Returning guests: prove it's them with the email they gave at RSVP time.
+  const unlockCard = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!guest) return;
+    setErrorMessage(null);
+    setIsUnlocking(true);
+    try {
+      const res = await fetch(`/api/invite/${slug}/my-card`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: guest.phone, email: cardEmail }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setErrorMessage(data.error); return; }
+      setGuest({ ...guest, rsvp: data.rsvp });
+      setStatusMessage("Found it! Download your card below.");
+    } catch { setErrorMessage("Unable to reach the server. Please try again."); }
+    finally { setIsUnlocking(false); }
   };
 
   const downloadCard = async () => {
@@ -300,16 +322,40 @@ export default function InvitePage() {
                     <CheckCircle className="h-5 w-5 text-emerald-600" />
                     <p className="font-semibold text-emerald-800">RSVP Confirmed!</p>
                   </div>
-                  {guest.rsvp.seatNumber && (
-                    <p className="text-sm text-emerald-700 mb-4">Seat #{guest.rsvp.seatNumber}</p>
+                  {guest.rsvp.uniqueCode ? (
+                    <>
+                      {guest.rsvp.seatNumber && (
+                        <p className="text-sm text-emerald-700 mb-4">Seat #{guest.rsvp.seatNumber}</p>
+                      )}
+                      <button
+                        onClick={downloadCard}
+                        className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition"
+                        style={{ background: primary }}
+                      >
+                        <Download className="h-4 w-4" /> Download Admission Card
+                      </button>
+                    </>
+                  ) : (
+                    <form onSubmit={unlockCard} className="space-y-3">
+                      <p className="text-sm text-emerald-700">Enter the email you used when you confirmed, to get your card.</p>
+                      <input
+                        value={cardEmail}
+                        onChange={(e) => setCardEmail(e.target.value)}
+                        placeholder="Your email address"
+                        type="email"
+                        required
+                        className="w-full rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm outline-none focus:ring-2"
+                      />
+                      <button
+                        type="submit"
+                        disabled={isUnlocking || !cardEmail}
+                        className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition disabled:opacity-60"
+                        style={{ background: primary }}
+                      >
+                        {isUnlocking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Get My Card
+                      </button>
+                    </form>
                   )}
-                  <button
-                    onClick={downloadCard}
-                    className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition"
-                    style={{ background: primary }}
-                  >
-                    <Download className="h-4 w-4" /> Download Admission Card
-                  </button>
                 </div>
               )}
 

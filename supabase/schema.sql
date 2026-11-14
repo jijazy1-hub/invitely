@@ -29,11 +29,10 @@ CREATE TABLE IF NOT EXISTS "subscriptions" (
   "userId"               TEXT         NOT NULL,
   "plan"                 TEXT         NOT NULL DEFAULT 'FREE',
   "status"               TEXT         NOT NULL DEFAULT 'ACTIVE',
-  "stripeCustomerId"     TEXT,
-  "stripeSubscriptionId" TEXT,
-  "stripePriceId"        TEXT,
   "currentPeriodStart"   TIMESTAMP(3),
   "currentPeriodEnd"     TIMESTAMP(3),
+  "gifted"               BOOLEAN      NOT NULL DEFAULT false,
+  "giftedBy"             TEXT,
   "createdAt"            TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updatedAt"            TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT "subscriptions_pkey" PRIMARY KEY ("id"),
@@ -152,6 +151,42 @@ CREATE TABLE IF NOT EXISTS "checkins" (
 CREATE UNIQUE INDEX IF NOT EXISTS "checkins_guestId_key"  ON "checkins"("guestId");
 CREATE        INDEX IF NOT EXISTS "checkins_eventId_idx"  ON "checkins"("eventId");
 
+-- ─── Columns added after the first release (safe to re-run on an existing DB) ─
+ALTER TABLE "subscriptions" ADD COLUMN IF NOT EXISTS "gifted"   BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "subscriptions" ADD COLUMN IF NOT EXISTS "giftedBy" TEXT;
+
+-- ─── payments (Flutterwave / Paystack) ───────────────────────────────────────
+CREATE TABLE IF NOT EXISTS "payments" (
+  "id"           TEXT         NOT NULL,
+  "userId"       TEXT         NOT NULL,
+  "provider"     TEXT         NOT NULL,
+  "reference"    TEXT         NOT NULL,
+  "providerTxId" TEXT,
+  "plan"         TEXT         NOT NULL,
+  "amount"       INTEGER      NOT NULL,
+  "currency"     TEXT         NOT NULL DEFAULT 'NGN',
+  "status"       TEXT         NOT NULL DEFAULT 'PENDING',
+  "createdAt"    TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "paidAt"       TIMESTAMP(3),
+  CONSTRAINT "payments_pkey" PRIMARY KEY ("id")
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "payments_reference_key" ON "payments"("reference");
+CREATE        INDEX IF NOT EXISTS "payments_userId_idx"    ON "payments"("userId");
+CREATE        INDEX IF NOT EXISTS "payments_status_idx"    ON "payments"("status");
+CREATE        INDEX IF NOT EXISTS "payments_createdAt_idx" ON "payments"("createdAt");
+
+-- ─── plan_configs (admin-editable prices and limits) ─────────────────────────
+CREATE TABLE IF NOT EXISTS "plan_configs" (
+  "key"       TEXT         NOT NULL,
+  "name"      TEXT         NOT NULL,
+  "priceNgn"  INTEGER      NOT NULL DEFAULT 0,
+  "maxEvents" INTEGER,
+  "maxGuests" INTEGER,
+  "features"  TEXT         NOT NULL DEFAULT '',
+  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "plan_configs_pkey" PRIMARY KEY ("key")
+);
+
 -- ─── Security: lock the tables away from Supabase's public REST API ──────────
 -- Invitely talks to the database directly through Prisma (as the `postgres`
 -- role, which bypasses RLS), so enabling RLS with no policies means nobody can
@@ -163,6 +198,8 @@ ALTER TABLE "events"        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "guests"        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "rsvps"         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "checkins"      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "payments"      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "plan_configs"  ENABLE ROW LEVEL SECURITY;
 
 -- ─── Starter templates (same as prisma/seed.ts) ──────────────────────────────
 INSERT INTO "templates" ("id","name","description","category","isPublic","config","updatedAt") VALUES

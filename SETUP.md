@@ -54,24 +54,18 @@ Deployments → latest → **⋯ → Redeploy** (environment changes only apply 
 In the Codespace terminal (repo root = the folder that contains the `invitely/` folder):
 
 ```bash
-# 1. Drag invitely-fixed.zip into the file explorer (left sidebar), then:
-unzip -o invitely-fixed.zip && rm invitely-fixed.zip
-
-# 2. Remove files from the old version that are no longer used
-rm -f invitely/src/lib/dev-store.ts invitely/fix.sh invitely/fix2.sh invitely/fix3.sh invitely/prisma/dev.db ..env.swp
-
-# 3. Install + check
+# 1. Install + check
 cd invitely
 npm install
 
-# 4. Supabase connection strings are ALREADY filled in invitely/.env — nothing to do.
+# 2. Supabase connection strings are ALREADY filled in invitely/.env — nothing to do.
 #    (If you ever change the database password, update POSTGRES_PRISMA_URL and
 #     POSTGRES_URL_NON_POOLING in .env, and in Vercel.)
 
-# 5. Confirm everything is wired (prints ✅ / ❌ with the exact fix)
+# 3. Confirm everything is wired (prints ✅ / ❌ with the exact fix)
 npm run db:check
 
-# 6. Start the app
+# 4. Start the app
 npm run dev
 ```
 

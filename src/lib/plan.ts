@@ -3,8 +3,7 @@ import prisma from "@/lib/prisma";
 export type Plan = "FREE" | "BASIC" | "PREMIUM";
 
 /**
- * Plan limits are OFF by default so you can test freely while Stripe billing is
- * not wired up. Set ENFORCE_PLAN_LIMITS=true in Vercel to turn them on
+ * Plan limits are OFF by default so you can test freely before billing is live. Set ENFORCE_PLAN_LIMITS=true in Vercel to turn them on
  * (FREE: 1 event / 50 guests, BASIC: 5 events / 500 guests).
  */
 export const limitsEnforced = () => process.env.ENFORCE_PLAN_LIMITS === "true";

@@ -3,6 +3,7 @@
 import React from "react";
 import { ImageResponse } from "next/og";
 import prisma from "@/lib/prisma";
+import { rateLimit, clientIp, MINUTE } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 import QRCode from "qrcode";
@@ -37,8 +38,11 @@ type Ctx = { params: { slug: string } };
 
 export async function POST(req: Request, { params }: Ctx) {
   try {
+    const limited = rateLimit([{ key: `card:${clientIp(req)}`, limit: 30, windowMs: 10 * MINUTE }]);
+    if (limited) return limited;
+
     const body = await req.json();
-    const code = String(body.code ?? "").trim();
+    const code = String(body.code ?? "").trim().toUpperCase();
     const imageBase64 = (body.imageBase64 as string) || null;
 
     if (!code) return Response.json({ error: "Code required" }, { status: 400 });
@@ -51,7 +55,7 @@ export async function POST(req: Request, { params }: Ctx) {
           include: {
             event: {
               select: {
-                name: true, date: true, time: true, venue: true, dressCode: true,
+                slug: true, name: true, date: true, time: true, venue: true, dressCode: true,
                 primaryColor: true, secondaryColor: true, accentColor: true,
                 eventType: true,
               },
@@ -61,7 +65,8 @@ export async function POST(req: Request, { params }: Ctx) {
       },
     });
 
-    if (!rsvp || rsvp.status !== "CONFIRMED") {
+    // The code must belong to THIS event's invite link.
+    if (!rsvp || rsvp.status !== "CONFIRMED" || rsvp.guest.event.slug !== params.slug) {
       return Response.json({ error: "Invalid or unconfirmed invitation code" }, { status: 404 });
     }
 

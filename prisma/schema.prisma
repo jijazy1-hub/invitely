@@ -31,9 +31,6 @@ model Subscription {
   user                  User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   plan                  String            @default("FREE")
   status                String            @default("ACTIVE")
-  stripeCustomerId      String?
-  stripeSubscriptionId  String?
-  stripePriceId         String?
   currentPeriodStart    DateTime?
   currentPeriodEnd      DateTime?
   gifted                Boolean           @default(false)
@@ -164,17 +161,7 @@ model Template {
   @@map("templates")
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Add to prisma/schema.prisma. Leave your datasource/generator blocks as they are.
-// ─────────────────────────────────────────────────────────────────────────────
-
-// 1) In the existing `model Subscription`, add these two lines
-//    (anywhere inside it, e.g. just above `createdAt`):
-//
-//      gifted                Boolean           @default(false)
-//      giftedBy              String?
-
-// 2) Add these two new models at the bottom of the file:
+// ─── Billing (Flutterwave / Paystack) ────────────────────────────────────────
 
 model Payment {
   id            String    @id @default(cuid())

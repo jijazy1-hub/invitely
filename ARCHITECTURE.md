@@ -20,7 +20,7 @@ The existing project is a **single-tenant, single-event** wedding RSVP system bu
 |---|---|
 | Phone normalization (`normalizePhone`) | Moved to `src/utils/phone.ts` |
 | Unique code generation (`generateUniqueCode`) | Moved to `src/utils/codes.ts` (generalized) |
-| Card generation JSX layout | Refactored into `src/lib/card-generator.ts` (event-dynamic) |
+| Card generation JSX layout | Lives in `src/app/api/invite/[slug]/generate-card/route.tsx` (event-dynamic) |
 | QR code generation (qrcode library) | Reused as-is |
 | RSVP form flow (verify → RSVP → download) | Refactored into `src/app/invite/[slug]/page.tsx` |
 | Seat number assignment logic | Adapted to PostgreSQL query |
@@ -89,76 +89,55 @@ users (via Clerk, synced via webhooks)
 
 ---
 
-## 4. Folder Structure
+## 4. Folder Structure (as built)
 
 ```
 invitely/
 ├── prisma/
-│   └── schema.prisma              # DB schema
+│   ├── schema.prisma              # DB schema (Prisma)
+│   └── seed.ts                    # Starter templates
+├── supabase/schema.sql            # Same schema as plain SQL for the Supabase SQL editor
+├── scripts/check-db.ts            # `npm run db:check`
 ├── src/
+│   ├── middleware.ts              # Clerk route protection
 │   ├── app/
-│   │   ├── (auth)/                # Clerk auth pages
-│   │   │   ├── sign-in/[[...sign-in]]/page.tsx
-│   │   │   └── sign-up/[[...sign-up]]/page.tsx
-│   │   ├── (dashboard)/           # Protected dashboard
-│   │   │   ├── layout.tsx         # Sidebar layout
-│   │   │   ├── dashboard/page.tsx # Overview
-│   │   │   ├── events/
-│   │   │   │   ├── page.tsx       # All events
-│   │   │   │   ├── new/page.tsx   # Create event
-│   │   │   │   └── [eventId]/
-│   │   │   │       ├── page.tsx   # Event detail
-│   │   │   │       ├── guests/page.tsx
-│   │   │   │       └── analytics/page.tsx
-│   │   │   ├── templates/page.tsx
-│   │   │   ├── analytics/page.tsx
-│   │   │   ├── billing/page.tsx
-│   │   │   └── settings/page.tsx
+│   │   ├── page.tsx               # Marketing landing page
+│   │   ├── (auth)/                # Clerk sign-in / sign-up
+│   │   ├── (dashboard)/           # Organiser dashboard (events, guests, templates,
+│   │   │                          #   analytics, billing, settings)
+│   │   ├── (admin)/admin/         # Platform admin (users, plans, payments)
 │   │   ├── invite/[slug]/page.tsx # Public RSVP page
-│   │   ├── checkin/[slug]/page.tsx # QR check-in scanner
-│   │   ├── api/
-│   │   │   ├── webhooks/clerk/route.ts
-│   │   │   ├── events/route.ts    # GET/POST events
-│   │   │   ├── events/[eventId]/
-│   │   │   │   ├── route.ts       # GET/PUT/DELETE event
-│   │   │   │   └── guests/
-│   │   │   │       ├── route.ts   # GET/POST guests
-│   │   │   │       └── import/route.ts # Bulk import
-│   │   │   ├── invite/[slug]/
-│   │   │   │   ├── check-guest/route.ts
-│   │   │   │   ├── rsvp/route.ts
-│   │   │   │   └── generate-card/route.tsx
-│   │   │   └── checkin/route.ts   # Check-in via QR
-│   │   ├── globals.css
-│   │   └── layout.tsx
-│   ├── components/
-│   │   ├── ui/                    # shadcn/ui components
-│   │   ├── dashboard/
-│   │   │   ├── sidebar.tsx
-│   │   │   ├── stats-card.tsx
-│   │   │   └── event-card.tsx
-│   │   ├── events/
-│   │   │   ├── event-form.tsx
-│   │   │   └── guest-import.tsx
-│   │   ├── invite/
-│   │   │   └── rsvp-form.tsx
-│   │   └── checkin/
-│   │       └── qr-scanner.tsx
+│   │   ├── checkin/[slug]/page.tsx# Door scanner (organiser, admin or staff link)
+│   │   └── api/
+│   │       ├── events/…           # Event + guest CRUD, CSV/Excel import, analytics
+│   │       ├── invite/[slug]/     # event, check-guest, rsvp, my-card, generate-card
+│   │       ├── checkin/           # Check-in (authorised)
+│   │       ├── billing/           # checkout + provider callback
+│   │       ├── webhooks/          # clerk, flutterwave, paystack
+│   │       ├── admin/             # plans, user plans, sync users
+│   │       ├── templates/, guests/, upload/
+│   ├── components/                # admin/, billing/, dashboard/, events/
 │   ├── lib/
-│   │   ├── prisma.ts              # Prisma singleton
-│   │   ├── cloudinary.ts          # File uploads
-│   │   └── card-generator.ts     # Dynamic card generation
-│   ├── utils/
-│   │   ├── phone.ts               # normalizePhone (reused)
-│   │   └── codes.ts               # generateUniqueCode (reused)
-│   ├── hooks/
-│   │   └── use-event.ts
-│   └── types/
-│       └── index.ts
-├── .env.example
-├── package.json
-└── tailwind.config.ts
+│   │   ├── prisma.ts, cloudinary.ts, utils.ts, ensure-user.ts
+│   │   ├── admin.ts               # Who is an admin (env vars)
+│   │   ├── plans.ts, plan.ts      # Plan definitions and limits
+│   │   ├── payments.ts            # Flutterwave / Paystack
+│   │   ├── rsvp.ts                # RSVP + seat assignment under a per-event lock
+│   │   ├── checkin-auth.ts        # Check-in access + signed staff links
+│   │   └── rate-limit.ts          # Limits on public endpoints
+│   ├── utils/phone.ts, codes.ts   # Phone normalisation, admission codes (crypto RNG)
+│   └── types/index.ts
 ```
+
+### Security notes
+- **Check-in** needs the organiser's login, an admin login, or the staff link
+  shown on the event page (`?key=` is an HMAC of the event id).
+- **Admission codes** are 8 characters from a crypto RNG and are never returned
+  by the phone lookup. Returning guests need phone **and** the email they gave
+  at RSVP to get their card again (`/api/invite/[slug]/my-card`).
+- **Seats** are assigned inside a transaction holding a Postgres advisory lock
+  per event, so simultaneous RSVPs can't share a seat.
+- **Public endpoints** are rate limited per IP (in memory, per server instance).
 
 ---
 
