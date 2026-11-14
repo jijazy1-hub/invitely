@@ -159,7 +159,8 @@ export default function InvitePage() {
       const res = await fetch(`/api/invite/${slug}/generate-card`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: guest.rsvp.uniqueCode, imageBase64: image === "skip" ? null : image }),
+        // The card always uses the photo saved when the guest confirmed.
+        body: JSON.stringify({ code: guest.rsvp.uniqueCode }),
       });
       if (!res.ok) {
         const b = await res.json().catch(() => ({}));
@@ -338,28 +339,8 @@ export default function InvitePage() {
             </div>
           )}
 
-          {/* Guest returning — photo optional */}
-          {guest && !image && hasResponded && (
-            <div className="mt-6 rounded-2xl p-6 border" style={{ background: bg, borderColor: secondary + "40" }}>
-              <h3 className="font-semibold mb-2" style={{ color: primary }}>
-                Update Photo <span className="text-sm font-normal text-stone-500">(optional)</span>
-              </h3>
-              <div className="flex flex-col sm:flex-row gap-3">
-                {photoBusy ? (
-                  <div className="flex items-center gap-2 text-sm text-stone-600"><Loader2 className="h-4 w-4 animate-spin" /> Preparing photo…</div>
-                ) : (
-                  <PhotoPicker onPick={handleImageUpload} label="Choose a photo" color={primary} />
-                )}
-                <button
-                  type="button"
-                  onClick={() => setImage("skip")}
-                  className="inline-flex items-center justify-center rounded-xl border border-stone-200 bg-white px-5 py-2.5 text-sm font-semibold text-stone-700 hover:bg-stone-50"
-                >
-                  Skip — download without photo
-                </button>
-              </div>
-            </div>
-          )}
+          {/* Returning guests can't change their photo: it was saved when they confirmed
+              and is what door staff check. They just download their card. */}
 
           {/* RSVP form */}
           {showRsvpForm && (
@@ -417,6 +398,7 @@ export default function InvitePage() {
                   </div>
                   {guest.rsvp.uniqueCode ? (
                     <>
+                      <p className="text-xs text-emerald-700/80 mb-3">Your photo was saved when you confirmed and can&apos;t be changed. It&apos;s on your card and shown to the door staff.</p>
                       {guest.rsvp.seatNumber && (
                         <p className="text-sm text-emerald-700 mb-4">Seat #{guest.rsvp.seatNumber}</p>
                       )}

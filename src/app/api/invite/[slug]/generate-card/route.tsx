@@ -3,7 +3,7 @@
 import prisma from "@/lib/prisma";
 import { renderCard } from "@/lib/card";
 import { designForEvent } from "@/lib/event-design";
-import { saveGuestPhoto, storedPhoto, isPhotoDataUrl } from "@/lib/guest-photo";
+import { storedPhoto } from "@/lib/guest-photo";
 import { rateLimit, clientIp, MINUTE } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -18,8 +18,6 @@ export async function POST(req: Request, { params }: Ctx) {
 
     const body = await req.json().catch(() => ({}));
     const code = String(body.code ?? "").trim().toUpperCase();
-    // The browser shrinks the photo to a small JPEG first (see the invite page), so this stays well under Vercel's 4.5 MB limit.
-    const newPhoto = isPhotoDataUrl(body.imageBase64) ? body.imageBase64 : null;
 
     if (!code) return Response.json({ error: "Code required" }, { status: 400 });
 
@@ -36,9 +34,9 @@ export async function POST(req: Request, { params }: Ctx) {
     const { guest } = rsvp;
     const { event } = guest;
 
-    // A new photo replaces the saved one (shown at check-in); no photo means use the saved one.
-    if (newPhoto) await saveGuestPhoto(guest.id, newPhoto);
-    const photo = newPhoto ?? storedPhoto(rsvp);
+    // Always the photo saved when the guest confirmed. Photos can't be changed here:
+    // door staff compare faces with it, so a swapped photo would let someone else in.
+    const photo = storedPhoto(rsvp);
 
     const image = await renderCard({
       eventName: event.name,

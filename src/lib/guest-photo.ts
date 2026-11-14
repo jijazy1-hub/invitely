@@ -17,15 +17,26 @@ export function isPhotoDataUrl(v: unknown): v is string {
   return typeof v === "string" && /^data:image\/(jpeg|jpg|png);base64,[A-Za-z0-9+/=]+$/.test(v) && v.length < 1_500_000;
 }
 
-/** Stores the photo for a guest's RSVP. Never throws: a failed save must not break the RSVP. */
+/**
+ * Stores the photo for a guest's RSVP, ONCE. If a photo is already saved it is kept:
+ * photos are locked after confirmation because door staff use them to verify faces.
+ * Never throws: a failed save must not break the RSVP.
+ */
 export async function saveGuestPhoto(guestId: string, dataUrl: string): Promise<void> {
   if (!isPhotoDataUrl(dataUrl)) return;
   try {
+    const existing = await prisma.rsvp.findUnique({ where: { guestId }, select: { photoUrl: true, guestPhoto: true } });
+    if (storedPhoto(existing)) return;
+
     if (cloudinaryConfigured()) {
-      const { uploadGuestPhoto } = await import("@/lib/cloudinary");
-      const result = await uploadGuestPhoto(dataUrl, guestId);
-      await prisma.rsvp.update({ where: { guestId }, data: { photoUrl: result.url, guestPhoto: null } });
-      return;
+      try {
+        const { uploadGuestPhoto } = await import("@/lib/cloudinary");
+        const result = await uploadGuestPhoto(dataUrl, guestId);
+        await prisma.rsvp.update({ where: { guestId }, data: { photoUrl: result.url, guestPhoto: null } });
+        return;
+      } catch (error) {
+        console.error("[PHOTO] Cloudinary upload failed, saving inline instead:", error);
+      }
     }
     if (dataUrl.length <= MAX_INLINE_BYTES) {
       await prisma.rsvp.update({ where: { guestId }, data: { guestPhoto: dataUrl } });
