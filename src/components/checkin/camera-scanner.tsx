@@ -46,7 +46,8 @@ export function CameraScanner({ onCode, paused }: { onCode: (code: string) => vo
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const found = jsQR(img.data, img.width, img.height, { inversionAttempts: "dontInvert" });
-        const text = found?.data?.trim().toUpperCase();
+        // Raw text: new cards hold a link (https://…/v/INV-XXXX), old ones just the code.
+        const text = found?.data?.trim();
         const now = Date.now();
         if (text && (text !== lastRef.current.code || now - lastRef.current.at > 4000)) {
           lastRef.current = { code: text, at: now };

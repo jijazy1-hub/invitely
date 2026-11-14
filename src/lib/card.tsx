@@ -8,6 +8,8 @@ import { ImageResponse } from "next/og";
 import QRCode from "qrcode";
 import { loadFonts, clean, hex, inkOn, sizeFor, initials, validPhoto } from "@/lib/card-shared";
 import type { CardDesign } from "@/lib/card-design";
+import { appUrl } from "@/lib/site";
+import { verifyLink } from "@/utils/scan";
 
 export type CardData = {
   eventName: string;
@@ -72,7 +74,8 @@ export async function renderCard(d: CardData, opts: RenderOptions = {}): Promise
   });
 
   // Always black on white: coloured QR codes (e.g. dark-on-dark templates) fail to scan.
-  const qr = await QRCode.toDataURL(code, { margin: 1, width: 600, errorCorrectionLevel: "M", color: { dark: "#000000", light: "#FFFFFF" } });
+  // The QR opens the verification screen in any phone camera (photo + full name for the door staff).
+  const qr = await QRCode.toDataURL(verifyLink(appUrl(), code), { margin: 1, width: 600, errorCorrectionLevel: "M", color: { dark: "#000000", light: "#FFFFFF" } });
 
   const fonts = loadFonts();
   const SANS = "Sans, SansExt, SansViet";

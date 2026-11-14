@@ -1,0 +1,51 @@
+
+━━━ 1/7 Finding the zip
+✅ /workspaces/invitely/invitely-update-v10.zip
+
+━━━ 2/7 Finding the project
+✅ Folder: /workspaces/invitely
+✅ Repo:   https://github.com/jijazy1-hub/invitely   Branch: main
+
+━━━ 3/7 Unzipping
+✅ Files updated
+
+━━━ 4/7 Installing packages (takes a minute)
+
+> invitely@1.0.0 postinstall
+> prisma generate
+
+Environment variables loaded from .env
+Prisma schema loaded from prisma/schema.prisma
+
+✔ Generated Prisma Client (v5.22.0) to ./node_modules/@prisma/client in 173ms
+
+Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+
+Tip: Need your database queries to be 1000x faster? Accelerate offers you that and more: https://pris.ly/tip-2-accelerate
+
+
+up to date in 2s
+npm warn install-scripts 5 packages have install scripts not yet covered by allowScripts:
+npm warn install-scripts   @clerk/shared@3.48.0 (postinstall: node ./scripts/postinstall.mjs)
+npm warn install-scripts   @prisma/client@5.22.0 (postinstall: node scripts/postinstall.js)
+npm warn install-scripts   @prisma/engines@5.22.0 (postinstall: node scripts/postinstall.js)
+npm warn install-scripts   esbuild@0.28.2 (postinstall: node install.js)
+npm warn install-scripts   prisma@5.22.0 (preinstall: node scripts/preinstall-entry.js)
+npm warn install-scripts
+npm warn install-scripts Run `npm install-scripts ls` to review, or `npm install-scripts approve <pkg>` to allow.
+
+━━━ 5/7 Preparing the database client
+Environment variables loaded from .env
+Prisma schema loaded from prisma/schema.prisma
+
+✔ Generated Prisma Client (v5.22.0) to ./node_modules/@prisma/client in 175ms
+
+Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+
+Tip: Interested in query caching in just a few lines of code? Try Accelerate today! https://pris.ly/tip-3-accelerate
+
+
+━━━ 6/7 Checking the code
+✅ Code checks passed
+
+━━━ 7/7 Committing and pushing

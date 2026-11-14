@@ -33,8 +33,27 @@ function validStaffKey(eventId: string, given: string | null): boolean {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
+/** Cookie that remembers a door-staff phone for one event (set when the staff link is opened). */
+export function staffCookieName(eventId: string): string {
+  return `inv_staff_${eventId}`;
+}
+
+/** True if this value is the event's staff key (from the cookie or the link). */
+export function isValidStaffKey(eventId: string, given: string | null | undefined): boolean {
+  return validStaffKey(eventId, given ?? null);
+}
+
+function cookieValue(req: Request, name: string): string | null {
+  const raw = req.headers.get("cookie") ?? "";
+  for (const part of raw.split(";")) {
+    const [k, ...v] = part.trim().split("=");
+    if (k === name) return decodeURIComponent(v.join("="));
+  }
+  return null;
+}
+
 export type CheckinAccess =
-  | { ok: true; eventId: string; checkedInBy: string }
+  | { ok: true; eventId: string; checkedInBy: string; viaKey?: string }
   | { ok: false; status: 401 | 403 | 404; error: string };
 
 export async function authorizeCheckin(req: Request, slug: string): Promise<CheckinAccess> {
@@ -43,6 +62,9 @@ export async function authorizeCheckin(req: Request, slug: string): Promise<Chec
 
   const key = req.headers.get("x-checkin-key") ?? new URL(req.url).searchParams.get("key");
   if (validStaffKey(event.id, key)) {
+    return { ok: true, eventId: event.id, checkedInBy: "staff-link", viaKey: key! };
+  }
+  if (validStaffKey(event.id, cookieValue(req, staffCookieName(event.id)))) {
     return { ok: true, eventId: event.id, checkedInBy: "staff-link" };
   }
 

@@ -9,6 +9,7 @@ import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { normalizePhone } from "@/utils/phone";
 import { storedPhoto } from "@/lib/guest-photo";
+import { extractCode } from "@/utils/scan";
 import { rateLimit, clientIp, MINUTE } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +25,7 @@ export async function POST(req: Request) {
 
     const body = await req.json().catch(() => ({}));
     const slug = typeof body.slug === "string" ? body.slug : "";
-    const code = typeof body.code === "string" ? body.code.trim().toUpperCase().replace(/\s+/g, "") : "";
+    const code = typeof body.code === "string" ? extractCode(body.code) : "";
     const phone = typeof body.phone === "string" ? normalizePhone(body.phone) : "";
     const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
 

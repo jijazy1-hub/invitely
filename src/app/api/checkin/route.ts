@@ -5,8 +5,9 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
-import { authorizeCheckin } from "@/lib/checkin-auth";
+import { authorizeCheckin, staffCookieName } from "@/lib/checkin-auth";
 import { storedPhoto } from "@/lib/guest-photo";
+import { extractCode } from "@/utils/scan";
 
 export async function GET(req: Request) {
   try {
@@ -21,7 +22,15 @@ export async function GET(req: Request) {
       prisma.guest.count({ where: { eventId: access.eventId } }),
     ]);
 
-    return NextResponse.json({ checkedIn, total });
+    const res = NextResponse.json({ checkedIn, total });
+    // Remember this phone as door staff for 3 days, so scanning a card with the
+    // phone's normal camera (which opens /v/<code>) also offers "Check in".
+    if (access.viaKey) {
+      res.cookies.set(staffCookieName(access.eventId), access.viaKey, {
+        httpOnly: true, secure: true, sameSite: "lax", path: "/", maxAge: 3 * 24 * 60 * 60,
+      });
+    }
+    return res;
   } catch (err) {
     console.error("/api/checkin GET error:", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
@@ -32,7 +41,7 @@ export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
     const slug = typeof body.slug === "string" ? body.slug : "";
-    const code = typeof body.code === "string" ? body.code.trim().toUpperCase() : "";
+    const code = typeof body.code === "string" ? extractCode(body.code) : "";
     if (!slug || !code) return NextResponse.json({ status: "invalid", message: "Missing slug or code." }, { status: 400 });
 
     const access = await authorizeCheckin(req, slug);

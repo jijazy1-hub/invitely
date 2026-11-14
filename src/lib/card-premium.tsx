@@ -13,6 +13,8 @@ import { coverBox, type CardDesign, type Frame, type Ornament } from "@/lib/card
 import {
   loadFonts, FAMILY, clean, inkOn, rgba, sizeFor, initials, validPhoto, validBackground, svgDataUrl, formatEventDate,
 } from "@/lib/card-shared";
+import { appUrl } from "@/lib/site";
+import { verifyLink } from "@/utils/scan";
 
 const W = 1080;
 const H = 1500;
@@ -475,7 +477,7 @@ export async function renderPremiumCard(d: CardData, design: CardDesign, opts: {
   const code = clean(d.code).toUpperCase();
   const time = clean(d.time);
   const dateText = formatEventDate(d.date);
-  const qr = await QRCode.toDataURL(code, { margin: 1, width: 600, errorCorrectionLevel: "M", color: { dark: "#000000", light: "#FFFFFF" } });
+  const qr = await QRCode.toDataURL(verifyLink(appUrl(), code), { margin: 1, width: 600, errorCorrectionLevel: "M", color: { dark: "#000000", light: "#FFFFFF" } });
   const ink = c.ink;
   const ctx: Ctx = {
     d,

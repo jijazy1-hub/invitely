@@ -74,6 +74,18 @@ export default function CheckinPage() {
     }
   };
 
+  const closeResult = () => {
+    setResult(null);
+    setTimeout(() => inputRef.current?.focus(), 100);
+  };
+
+  // Successful check-ins close on their own so staff can keep scanning.
+  useEffect(() => {
+    if (result?.status !== "success") return;
+    const t = setTimeout(() => setResult(null), 6000);
+    return () => clearTimeout(t);
+  }, [result]);
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") handleCheckin();
   };
@@ -148,7 +160,7 @@ export default function CheckinPage() {
       {/* Scanner input */}
       <div className="px-6 mb-6">
         <div className="rounded-2xl bg-white/10 p-6 space-y-4">
-          <CameraScanner paused={loading} onCode={(c) => handleCheckin(c)} />
+          <CameraScanner paused={loading || !!result} onCode={(c) => handleCheckin(c)} />
           <p className="text-sm font-medium text-white/80 pt-2">Or type the code / use a USB scanner</p>
           <div className="flex gap-3">
             <input
@@ -170,49 +182,59 @@ export default function CheckinPage() {
         </div>
       </div>
 
-      {/* Result */}
+      {/* Result: full-screen pop-up so door staff can read it at a glance */}
       {result && (
-        <div className="px-6">
-          <div className={`rounded-2xl p-6 border-2 ${
-            result.status === "success"
-              ? "bg-emerald-900/50 border-emerald-500"
-              : result.status === "already_checked_in"
-              ? "bg-amber-900/50 border-amber-500"
-              : "bg-red-900/50 border-red-500"
-          }`}>
-            <div className="flex items-center gap-3 mb-2">
-              {result.status === "success" && <CheckCircle className="h-7 w-7 text-emerald-400" />}
-              {result.status === "already_checked_in" && <AlertCircle className="h-7 w-7 text-amber-400" />}
-              {(result.status === "invalid" || result.status === "declined") && <XCircle className="h-7 w-7 text-red-400" />}
-              <p className="text-lg font-bold">
-                {result.status === "success" && "Welcome!"}
-                {result.status === "already_checked_in" && "Already Checked In"}
-                {result.status === "invalid" && "Invalid Code"}
-                {result.status === "declined" && "Declined RSVP"}
-              </p>
+        <div
+          className="fixed inset-0 z-50 flex flex-col"
+          style={{ background: result.status === "success" ? "#059669" : result.status === "already_checked_in" ? "#D97706" : "#DC2626" }}
+          onClick={closeResult}
+        >
+          <div className="px-6 pt-10 pb-6 text-center text-white">
+            <div className="flex justify-center">
+              {result.status === "success" && <CheckCircle className="h-12 w-12" />}
+              {result.status === "already_checked_in" && <AlertCircle className="h-12 w-12" />}
+              {(result.status === "invalid" || result.status === "declined") && <XCircle className="h-12 w-12" />}
             </div>
-            {result.guest && (
-              <div className="mt-3 flex items-center gap-4">
-                {result.guest.photo ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={result.guest.photo} alt={result.guest.name} className="h-24 w-24 shrink-0 rounded-2xl object-cover border-2 border-white/40" />
-                ) : (
-                  <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-3xl font-bold">
-                    {result.guest.name.split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase()).join("")}
-                  </div>
-                )}
-                <div>
-                  <p className="text-xl font-semibold text-white">{result.guest.name}</p>
-                  {result.guest.seatNumber && (
-                    <p className="text-white/70 text-sm mt-1">Seat #{result.guest.seatNumber}</p>
-                  )}
-                  {result.status === "success" && result.guest.photo && (
-                    <p className="text-xs text-white/50 mt-1">Check the face matches the guest.</p>
+            <p className="mt-3 text-3xl font-extrabold tracking-wide">
+              {result.status === "success" && "✓ INVITED: ADMIT"}
+              {result.status === "already_checked_in" && "ALREADY CHECKED IN"}
+              {result.status === "invalid" && (result.guest ? "✗ NOT CONFIRMED" : "✗ NOT ON GUEST LIST")}
+              {result.status === "declined" && "✗ DECLINED"}
+            </p>
+            <p className="mt-1 text-sm text-white/85">{result.message}</p>
+          </div>
+          <div className="flex-1 rounded-t-3xl bg-white px-6 pt-8 pb-8 text-center" onClick={(e) => e.stopPropagation()}>
+            {result.guest ? (
+              <>
+                <div className="flex justify-center">
+                  {result.guest.photo ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={result.guest.photo} alt={result.guest.name} className="h-56 w-56 rounded-3xl object-cover shadow-lg" />
+                  ) : (
+                    <div className="flex h-56 w-56 flex-col items-center justify-center rounded-3xl bg-stone-100 text-stone-400">
+                      <span className="text-7xl font-bold">{result.guest.name.split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase()).join("")}</span>
+                      <span className="mt-2 text-xs text-stone-500">No photo on file: check ID</span>
+                    </div>
                   )}
                 </div>
+                <p className="mt-5 text-xs font-bold uppercase tracking-[0.25em] text-stone-400">Full name</p>
+                <p className="mt-1 text-3xl font-bold leading-tight text-stone-900">{result.guest.name}</p>
+                {result.guest.seatNumber ? (
+                  <p className="mt-3 inline-block rounded-full bg-stone-900 px-6 py-2 text-lg font-bold text-white">Seat {result.guest.seatNumber}</p>
+                ) : null}
+                {result.status === "success" && <p className="mt-4 text-sm text-stone-500">Compare the photo with the person&apos;s face.</p>}
+              </>
+            ) : (
+              <div className="py-8">
+                <p className="text-6xl">⛔</p>
+                <p className="mt-4 text-lg font-semibold text-stone-900">Do not admit</p>
+                <p className="mt-1 text-sm text-stone-500">This code isn&apos;t on the guest list for this event.</p>
               </div>
             )}
-            <p className="text-white/70 text-sm mt-2">{result.message}</p>
+            <button onClick={closeResult} className="mt-8 w-full rounded-2xl bg-[#0A2810] py-4 text-lg font-bold text-white">
+              Next guest
+            </button>
+            {result.status === "success" && <p className="mt-2 text-xs text-stone-400">Closes by itself in a few seconds</p>}
           </div>
         </div>
       )}
