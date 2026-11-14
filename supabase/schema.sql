@@ -187,6 +187,14 @@ CREATE TABLE IF NOT EXISTS "plan_configs" (
   CONSTRAINT "plan_configs_pkey" PRIMARY KEY ("key")
 );
 
+-- ─── app_settings (admin switches, e.g. premium card designs free/paid) ──────
+CREATE TABLE IF NOT EXISTS "app_settings" (
+  "key"       TEXT         NOT NULL,
+  "value"     TEXT         NOT NULL,
+  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "app_settings_pkey" PRIMARY KEY ("key")
+);
+
 -- ─── Security: lock the tables away from Supabase's public REST API ──────────
 -- Invitely talks to the database directly through Prisma (as the `postgres`
 -- role, which bypasses RLS), so enabling RLS with no policies means nobody can
@@ -200,6 +208,7 @@ ALTER TABLE "rsvps"         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "checkins"      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "payments"      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "plan_configs"  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "app_settings"  ENABLE ROW LEVEL SECURITY;
 
 -- ─── Starter templates (same as prisma/seed.ts) ──────────────────────────────
 INSERT INTO "templates" ("id","name","description","category","isPublic","config","updatedAt") VALUES

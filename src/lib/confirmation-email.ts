@@ -6,11 +6,12 @@ import { renderCardPng } from "@/lib/card";
 import { sendEmail, escapeHtml } from "@/lib/email";
 import { appUrl } from "@/lib/site";
 import { storedPhoto } from "@/lib/guest-photo";
+import { designForEvent } from "@/lib/event-design";
 
 export async function sendConfirmationEmail(guestId: string, photo?: string | null): Promise<boolean> {
   const guest = await prisma.guest.findUnique({
     where: { id: guestId },
-    include: { rsvp: true, event: true },
+    include: { rsvp: true, event: { include: { template: true } } },
   });
   const rsvp = guest?.rsvp;
   if (!guest || !rsvp || rsvp.status !== "CONFIRMED" || !rsvp.uniqueCode) return false;
@@ -34,7 +35,7 @@ export async function sendConfirmationEmail(guestId: string, photo?: string | nu
       venue: event.venue, dressCode: event.dressCode, primaryColor: event.primaryColor,
       secondaryColor: event.secondaryColor, accentColor: event.accentColor,
       guestName: guest.name, seatNumber: rsvp.seatNumber, code, photo: photo ?? storedPhoto(rsvp),
-    });
+    }, { design: designForEvent(event) });
   } catch (error) {
     console.error("[EMAIL] Card render failed; sending without attachment:", error);
   }

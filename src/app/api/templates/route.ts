@@ -29,7 +29,8 @@ export async function GET(_req: NextRequest) {
       : { isPublic: true };
 
     const templates = await prisma.template.findMany({
-      where,
+      // Events' own card designs are stored as private templates; don't list them here.
+      where: { AND: [where, { category: { not: "CUSTOM_DESIGN" } }] },
       orderBy: [{ isPublic: "desc" }, { createdAt: "asc" }],
     });
 

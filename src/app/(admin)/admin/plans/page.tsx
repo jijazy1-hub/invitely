@@ -2,10 +2,13 @@ export const dynamic = "force-dynamic";
 // src/app/(admin)/admin/plans/page.tsx
 import { getPlans, PLAN_KEYS } from "@/lib/plans";
 import { PlanEditor } from "@/components/admin/plan-editor";
+import { FeatureSettings } from "@/components/admin/feature-settings";
+import { premiumDesignsAccess } from "@/lib/settings";
 
 export default async function AdminPlansPage() {
   const plans = await getPlans();
   const initial = PLAN_KEYS.map((k) => plans[k]);
+  const premiumDesigns = await premiumDesignsAccess();
 
   return (
     <div className="space-y-6">
@@ -16,6 +19,7 @@ export default async function AdminPlansPage() {
           guest limits. Leave a limit empty for unlimited. Existing subscribers keep their plan.
         </p>
       </div>
+      <FeatureSettings initialPremiumDesigns={premiumDesigns} />
       <PlanEditor initial={initial} />
     </div>
   );

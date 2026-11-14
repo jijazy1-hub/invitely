@@ -14,3 +14,20 @@ export async function canUseAnalytics(userId: string): Promise<boolean> {
   const admin = await getAdminContext().catch(() => null);
   return !!admin;
 }
+
+/**
+ * Premium card designs (designer layouts, photos, ornaments, fonts).
+ * Paid plans by default; the admin can make them free for everyone in Admin > Plans.
+ */
+export async function canUsePremiumDesigns(userId: string): Promise<boolean> {
+  const { premiumDesignsAccess } = await import("@/lib/settings");
+  if ((await premiumDesignsAccess()) === "FREE") return true;
+  try {
+    const plan = await getUserPlan(userId);
+    if (plan.key !== "FREE") return true;
+  } catch (error) {
+    console.error("[ACCESS] plan lookup failed:", error);
+  }
+  const admin = await getAdminContext().catch(() => null);
+  return !!admin;
+}

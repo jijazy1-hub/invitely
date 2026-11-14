@@ -344,7 +344,7 @@ export default function LandingPage() {
           <div className="pricing-grid" style={{marginTop: "3.5rem"}}>
             {[
               { name: "Free", price: "₦0", period: "forever", popular: false, features: ["1 event", "Up to 50 guests", "QR check-in", "Admission cards by email", "Invite page"], btn: "Get started", btnClass: "" },
-              { name: "Basic", price: "₦5,000", period: "per month", popular: true, features: ["Up to 5 events", "Up to 500 guests", "QR check-in", "Full analytics", "Custom branding", "Priority support"], btn: "Start free trial", btnClass: "primary" },
+              { name: "Basic", price: "₦5,000", period: "per month", popular: true, features: ["Up to 5 events", "Up to 500 guests", "QR check-in", "Full analytics", "Premium card designer", "Priority support"], btn: "Start free trial", btnClass: "primary" },
               { name: "Premium", price: "₦15,000", period: "per month", popular: false, features: ["Unlimited events", "Unlimited guests", "Everything in Basic", "White-label", "API access", "Dedicated support"], btn: "Contact us", btnClass: "" },
             ].map((p) => (
               <div key={p.name} className={`plan-card${p.popular ? " popular" : ""}`}>

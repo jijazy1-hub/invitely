@@ -2,6 +2,7 @@
 // Returns the guest's admission card as a PNG. The design lives in src/lib/card.tsx.
 import prisma from "@/lib/prisma";
 import { renderCard } from "@/lib/card";
+import { designForEvent } from "@/lib/event-design";
 import { saveGuestPhoto, storedPhoto, isPhotoDataUrl } from "@/lib/guest-photo";
 import { rateLimit, clientIp, MINUTE } from "@/lib/rate-limit";
 
@@ -24,7 +25,7 @@ export async function POST(req: Request, { params }: Ctx) {
 
     const rsvp = await prisma.rsvp.findUnique({
       where: { uniqueCode: code },
-      include: { guest: { include: { event: true } } },
+      include: { guest: { include: { event: { include: { template: true } } } } },
     });
 
     // The code must belong to THIS event's invite link.
@@ -53,7 +54,7 @@ export async function POST(req: Request, { params }: Ctx) {
       seatNumber: rsvp.seatNumber,
       code,
       photo,
-    });
+    }, { design: designForEvent(event) });
 
     const png = await image.arrayBuffer();
     return new Response(png, {

@@ -39,3 +39,16 @@ Open /admin/payments after deploying. It shows the exact webhook URL for each pl
 - Users > "Sync from Clerk" once, to import everyone who has already signed up.
 - Plans: set your real prices and limits.
 - Test a purchase with a test card from a second account.
+
+## 7. Premium card designs (Card Designer)
+Run this once in Supabase > SQL Editor (it is also in `supabase/schema.sql`):
+
+    CREATE TABLE IF NOT EXISTS "app_settings" (
+      "key" TEXT PRIMARY KEY,
+      "value" TEXT NOT NULL,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    ALTER TABLE "app_settings" ENABLE ROW LEVEL SECURITY;
+
+Then go to Admin > Plans > "Premium card designs" to choose **Paid plans only** (default) or **Free for everyone**.
+Organisers open the designer from their event page ("Design card") or from Templates.

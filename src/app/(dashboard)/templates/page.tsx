@@ -3,7 +3,7 @@
 // src/app/(dashboard)/templates/page.tsx
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Palette, Lock, Globe, CheckCircle, Loader2, Image as ImageIcon } from "lucide-react";
+import { Palette, Lock, Globe, CheckCircle, Loader2, Image as ImageIcon, Sparkles } from "lucide-react";
 
 interface Template {
   id: string;
@@ -210,6 +210,31 @@ export default function TemplatesPage() {
           <h1 className="text-2xl font-bold text-stone-900">Templates</h1>
           <p className="text-stone-500 text-sm">Choose a design for your invitation cards</p>
         </div>
+      </div>
+
+      {/* Card Designer */}
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-gradient-to-r from-[#0A2810] to-[#1d4a2a] p-5 text-white">
+        <div className="flex items-start gap-3">
+          <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-[#D4A843]" />
+          <div>
+            <p className="font-semibold">Design your own admission card</p>
+            <p className="text-sm text-white/70">Couple photo backgrounds, gold floral corners, script fonts, your own wording and colours.</p>
+          </div>
+        </div>
+        {events.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={eventId}
+              onChange={(e) => setEventId(e.target.value)}
+              className="rounded-lg border-0 bg-white/10 px-3 py-2 text-sm text-white outline-none [&>option]:text-stone-900"
+            >
+              {events.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
+            </select>
+            <Link href={`/events/${eventId}/design`} className="rounded-lg bg-[#D4A843] px-4 py-2 text-sm font-bold text-[#0A2810] hover:bg-[#e6b84d]">Open Card Designer</Link>
+          </div>
+        ) : (
+          <Link href="/events/new" className="rounded-lg bg-[#D4A843] px-4 py-2 text-sm font-bold text-[#0A2810]">Create an event first</Link>
+        )}
       </div>
 
       {/* Filter tabs */}

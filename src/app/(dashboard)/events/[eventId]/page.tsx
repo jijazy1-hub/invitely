@@ -2,7 +2,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Globe, ExternalLink, QrCode, Users, BarChart2, Download, Printer, Smartphone, ScanLine, Image as ImageIcon } from "lucide-react";
+import { Globe, ExternalLink, QrCode, Users, BarChart2, Download, Printer, Smartphone, ScanLine, Image as ImageIcon, Sparkles } from "lucide-react";
 import QRCode from "qrcode";
 import type { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
@@ -177,12 +177,17 @@ export default async function EventPage({ params }: { params: { eventId: string 
           </div>
           <div>
             <h2 className="font-semibold text-stone-900">Admission Card Design</h2>
-            <p className="text-sm text-stone-500">Change the look from <Link href="/templates" className="underline">Templates</Link>.</p>
+            <p className="text-sm text-stone-500">Choose a layout, colours, fonts and a background photo in the Card Designer.</p>
           </div>
         </div>
-        <a href={`/api/events/${event.id}/card-preview`} target="_blank" className="inline-flex items-center gap-2 rounded-lg border border-stone-200 px-4 py-2.5 text-sm font-semibold text-stone-700 hover:bg-stone-50">
-          <ImageIcon className="h-4 w-4" /> Preview card
-        </a>
+        <div className="flex flex-wrap gap-2">
+          <a href={`/api/events/${event.id}/card-preview`} target="_blank" className="inline-flex items-center gap-2 rounded-lg border border-stone-200 px-4 py-2.5 text-sm font-semibold text-stone-700 hover:bg-stone-50">
+            <ImageIcon className="h-4 w-4" /> Preview card
+          </a>
+          <Link href={`/events/${event.id}/design`} className="inline-flex items-center gap-2 rounded-lg bg-[#0A2810] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#0f3515]">
+            <Sparkles className="h-4 w-4" /> Design card
+          </Link>
+        </div>
       </div>
 
       {/* Quick actions */}

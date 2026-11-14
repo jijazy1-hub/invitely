@@ -6,8 +6,8 @@
 import React from "react";
 import { ImageResponse } from "next/og";
 import QRCode from "qrcode";
-import fs from "fs";
-import path from "path";
+import { loadFonts, clean, hex, inkOn, sizeFor, initials, validPhoto } from "@/lib/card-shared";
+import type { CardDesign } from "@/lib/card-design";
 
 export type CardData = {
   eventName: string;
@@ -26,6 +26,13 @@ export type CardData = {
   photo?: string | null;
 };
 
+export type RenderOptions = {
+  /** The event's saved design. Missing or "classic" = the classic card below. */
+  design?: CardDesign | null;
+  /** Diagonal watermark text, e.g. on premium previews for free users. */
+  watermark?: string | null;
+};
+
 const W = 1080;
 const H = 1440;
 
@@ -35,92 +42,16 @@ const TYPE_LABELS: Record<string, string> = {
   PRIVATE_DINNER: "Private Dinner", OTHER: "Event",
 };
 
-// ─── Fonts (shipped to Vercel via outputFileTracingIncludes in next.config.js) ──
-type Wt = 400 | 700;
-type FontDef = { name: string; data: ArrayBuffer; weight: Wt; style: "normal" };
-let fontCache: FontDef[] | null = null;
-
-function readFont(rel: string): ArrayBuffer | null {
-  try {
-    const buf = fs.readFileSync(path.join(process.cwd(), "node_modules", rel));
-    return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer;
-  } catch {
-    return null;
-  }
-}
-
-function loadFonts(): FontDef[] {
-  if (fontCache) return fontCache;
-  const list: [string, string, Wt][] = [];
-  // Inter: Latin, Latin-ext and the Vietnamese subset, which carries the dotted
-  // vowels used in Yoruba and Igbo names (ẹ, ọ, ṣ, ị, ụ).
-  // Each subset gets its own family name: Satori only falls back between
-  // differently-named fonts, so one shared name would drop the extra glyphs.
-  const sansSubsets: [string, string][] = [["Sans", "latin"], ["SansExt", "latin-ext"], ["SansViet", "vietnamese"]];
-  for (const [name, subset] of sansSubsets) {
-    for (const w of [400, 700] as Wt[]) list.push([name, `@fontsource/inter/files/inter-${subset}-${w}-normal.woff`, w]);
-  }
-  list.push(["Serif", "@fontsource/cormorant-garamond/files/cormorant-garamond-latin-700-normal.woff", 700]);
-  list.push(["SerifExt", "@fontsource/cormorant-garamond/files/cormorant-garamond-latin-ext-700-normal.woff", 700]);
-  const fonts: FontDef[] = [];
-  for (const [name, rel, weight] of list) {
-    const data = readFont(rel);
-    if (data && data.byteLength > 0) fonts.push({ name, data, weight, style: "normal" });
-  }
-  fontCache = fonts;
-  return fonts;
-}
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-/** Keep accents and Nigerian name characters; drop control chars and emoji (which would need a network fetch). */
-function clean(s: string | null | undefined): string {
-  return (s ?? "")
-    .normalize("NFC")
-    .replace(/[\u0000-\u001F\u007F]/g, "")
-    .replace(/\p{Extended_Pictographic}|️|‍/gu, "")
-    // Tone marks NFC couldn't merge into a letter (e.g. the grave on "ọ̀") render
-    // as floating accents in the image library, so drop them.
-    .replace(/[̀-ͯ]/g, "")
-    .trim();
-}
-
-function hex(c: string, fallback: string): string {
-  return /^#[0-9a-fA-F]{6}$/.test(c) ? c : fallback;
-}
-
-function luminance(c: string): number {
-  const n = parseInt(c.slice(1), 16);
-  const ch = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => {
-    const s = v / 255;
-    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
-  });
-  return 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2];
-}
-
-/** Dark text on light backgrounds, white text on dark ones. */
-function inkOn(bg: string): string {
-  return luminance(bg) > 0.45 ? "#1A1A1A" : "#FFFFFF";
-}
-
-function sizeFor(text: string, steps: [number, number][], min: number): number {
-  for (const [maxLen, size] of steps) if (text.length <= maxLen) return size;
-  return min;
-}
-
-function initials(name: string): string {
-  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]!.toUpperCase()).join("");
-}
-
-function validPhoto(p: string | null | undefined): string | null {
-  if (!p) return null;
-  if (/^data:image\/(jpeg|jpg|png);base64,/.test(p)) return p;
-  // Photos saved to Cloudinary (see src/lib/guest-photo.ts). Ask for a JPEG so the renderer can read it.
-  if (/^https:\/\/res\.cloudinary\.com\//.test(p)) return p.replace("/upload/", "/upload/f_jpg,w_480,h_480,c_fill,g_face/");
-  return null;
-}
-
 // ─── Render ──────────────────────────────────────────────────────────────────
-export async function renderCard(d: CardData): Promise<ImageResponse> {
+export async function renderCard(d: CardData, opts: RenderOptions = {}): Promise<ImageResponse> {
+  if (opts.design && opts.design.layout !== "classic") {
+    const { renderPremiumCard } = await import("@/lib/card-premium");
+    return renderPremiumCard(d, opts.design, { watermark: opts.watermark ?? null });
+  }
+  if (opts.design) {
+    // Classic layout with the designer's colours.
+    d = { ...d, primaryColor: opts.design.colors.primary, secondaryColor: opts.design.colors.accent, accentColor: opts.design.colors.paper };
+  }
   const PRIMARY = hex(d.primaryColor, "#0A2810");
   const SECONDARY = hex(d.secondaryColor, "#B8860B");
   const PAPER = hex(d.accentColor, "#F8F4E3");
@@ -237,7 +168,7 @@ export async function renderCard(d: CardData): Promise<ImageResponse> {
 }
 
 /** PNG bytes, for email attachments. */
-export async function renderCardPng(d: CardData): Promise<Buffer> {
-  const res = await renderCard(d);
+export async function renderCardPng(d: CardData, opts: RenderOptions = {}): Promise<Buffer> {
+  const res = await renderCard(d, opts);
   return Buffer.from(await res.arrayBuffer());
 }

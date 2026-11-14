@@ -193,3 +193,12 @@ model PlanConfig {
 
   @@map("plan_configs")
 }
+
+// ─── Platform settings the admin can switch (e.g. premium card designs free/paid) ─
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("app_settings")
+}

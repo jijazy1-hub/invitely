@@ -35,6 +35,7 @@ export const DEFAULT_PLANS: Record<PlanKey, PlanDef> = {
       "Up to 5 events",
       "Up to 500 guests per event",
       "Custom branding colors",
+      "Premium card designer (photo backgrounds, ornaments, fonts)",
       "Event logo & cover image",
       "Priority support",
       "Analytics dashboard",
@@ -49,6 +50,7 @@ export const DEFAULT_PLANS: Record<PlanKey, PlanDef> = {
     features: [
       "Unlimited events",
       "Unlimited guests",
+      "Premium card designer",
       "Custom templates",
       "Advanced analytics",
       "White-label cards",
