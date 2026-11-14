@@ -1,7 +1,8 @@
 "use client";
 
 // src/app/(dashboard)/guests/page.tsx
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
+import { GuestAddPanel } from "@/components/guests/guest-add-panel";
 import Link from "next/link";
 import {
   Users,
@@ -10,6 +11,8 @@ import {
   XCircle,
   Clock,
   ExternalLink,
+  UserPlus,
+  Plus,
 } from "lucide-react";
 
 interface GuestRow {
@@ -60,16 +63,34 @@ export default function GuestsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [events, setEvents] = useState<{ id: string; name: string }[] | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
+  const [addEventId, setAddEventId] = useState("");
+
+  const loadGuests = useCallback(() => {
+    return fetch("/api/guests")
+      .then((r) => r.json())
+      .then((d) => setGuests(d.guests ?? []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
 
   useEffect(() => {
-    fetch("/api/guests")
+    loadGuests();
+    fetch("/api/events")
       .then((r) => r.json())
       .then((d) => {
-        setGuests(d.guests ?? []);
-        setLoading(false);
+        const list = (d.events ?? []).map((e: any) => ({ id: e.id, name: e.name }));
+        setEvents(list);
+        if (list.length) setAddEventId(list[0].id);
       })
-      .catch(() => setLoading(false));
-  }, []);
+      .catch(() => setEvents([]));
+  }, [loadGuests]);
+
+  // Nobody added yet: open the add panel straight away.
+  useEffect(() => {
+    if (!loading && guests.length === 0 && events && events.length > 0) setAddOpen(true);
+  }, [loading, guests.length, events]);
 
   const filtered = useMemo(() => {
     return guests.filter((g) => {
@@ -103,11 +124,50 @@ export default function GuestsPage() {
         <div className="h-10 w-10 rounded-xl bg-[#0A2810]/10 flex items-center justify-center">
           <Users className="h-5 w-5 text-[#0A2810]" />
         </div>
-        <div>
+        <div className="flex-1">
           <h1 className="text-2xl font-bold text-stone-900">All Guests</h1>
           <p className="text-stone-500 text-sm">Across all your events</p>
         </div>
+        <button
+          onClick={() => setAddOpen((o) => !o)}
+          className="inline-flex items-center gap-2 rounded-lg bg-[#0A2810] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#0f3515] transition-colors"
+        >
+          <UserPlus className="h-4 w-4" />
+          {addOpen ? "Hide" : "Add / Import Guests"}
+        </button>
       </div>
+
+      {/* Add / import */}
+      {addOpen && (
+        <div className="rounded-2xl border border-stone-200 bg-white p-6 space-y-5">
+          {events === null ? (
+            <div className="h-6 w-6 rounded-full border-2 border-[#0A2810] border-t-transparent animate-spin" />
+          ) : events.length === 0 ? (
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-stone-600">Guests belong to an event. Create your event first, then add guests to it.</p>
+              <Link href="/events/new" className="inline-flex items-center gap-2 rounded-lg bg-[#0A2810] px-4 py-2 text-sm font-semibold text-white">
+                <Plus className="h-4 w-4" /> Create event
+              </Link>
+            </div>
+          ) : (
+            <>
+              <label className="block max-w-md">
+                <span className="text-sm font-semibold text-stone-900">Add guests to</span>
+                <select
+                  value={addEventId}
+                  onChange={(e) => setAddEventId(e.target.value)}
+                  className="mt-1.5 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 outline-none focus:border-[#0A2810] focus:ring-2 focus:ring-[#0A2810]/10"
+                >
+                  {events.map((e) => (
+                    <option key={e.id} value={e.id}>{e.name}</option>
+                  ))}
+                </select>
+              </label>
+              {addEventId && <GuestAddPanel key={addEventId} eventId={addEventId} onChanged={loadGuests} />}
+            </>
+          )}
+        </div>
+      )}
 
       {/* Stats row */}
       {!loading && (
@@ -171,7 +231,7 @@ export default function GuestsPage() {
             <p className="text-stone-400 text-sm mt-1">
               {search || statusFilter !== "ALL"
                 ? "Try adjusting your filters."
-                : "Add guests via your event pages."}
+                : "Click “Add / Import Guests” above to add your first guests."}
             </p>
           </div>
         ) : (
