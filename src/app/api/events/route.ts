@@ -7,6 +7,7 @@ import { getUserPlan } from "@/lib/plans";
 export const dynamic = "force-dynamic";
 import { generateSlug, randomSuffix } from "@/utils/codes";
 import { z } from "zod";
+import { validateEvent, toEventDate } from "@/lib/event-validation";
 
 const createEventSchema = z.object({
   name: z.string().min(1).max(120),
@@ -19,7 +20,7 @@ const createEventSchema = z.object({
   rsvpDeadline: z.string().optional().nullable(),
   organizerName: z.string().optional().nullable(),
   organizerPhone: z.string().optional().nullable(),
-  organizerEmail: z.string().email().optional().nullable(),
+  organizerEmail: z.union([z.string().email(), z.literal("")]).optional().nullable(),
   primaryColor: z.string().default("#0A2810"),
   secondaryColor: z.string().default("#B8860B"),
   accentColor: z.string().default("#F8F4E3"),
@@ -52,6 +53,15 @@ export async function POST(req: Request) {
 
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
+  }
+  const fieldErrors = validateEvent(
+    Object.fromEntries(
+      Object.entries(parsed.data).map(([k, v]) => [k, typeof v === "boolean" ? v : v == null ? "" : String(v)])
+    ) as any,
+    { isNew: true }
+  );
+  if (Object.keys(fieldErrors).length) {
+    return NextResponse.json({ error: Object.values(fieldErrors)[0], fieldErrors }, { status: 400 });
   }
 
   try {
@@ -92,15 +102,15 @@ export async function POST(req: Request) {
         name: data.name,
         slug,
         eventType: data.eventType,
-        date: new Date(data.date),
+        date: toEventDate(data.date),
         time: data.time ?? null,
         venue: data.venue,
         description: data.description ?? null,
         dressCode: data.dressCode ?? null,
-        rsvpDeadline: data.rsvpDeadline ? new Date(data.rsvpDeadline) : null,
+        rsvpDeadline: data.rsvpDeadline ? toEventDate(data.rsvpDeadline) : null,
         organizerName: data.organizerName ?? null,
         organizerPhone: data.organizerPhone ?? null,
-        organizerEmail: data.organizerEmail ?? null,
+        organizerEmail: data.organizerEmail || null,
         primaryColor: data.primaryColor,
         secondaryColor: data.secondaryColor,
         accentColor: data.accentColor,

@@ -2,7 +2,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Globe, ExternalLink, QrCode, Users, BarChart2, Download, Printer, Smartphone, ScanLine, Image as ImageIcon, Sparkles } from "lucide-react";
+import { Globe, ExternalLink, QrCode, Users, BarChart2, Download, Printer, Smartphone, ScanLine, Image as ImageIcon, Sparkles, Pencil } from "lucide-react";
 import QRCode from "qrcode";
 import type { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
@@ -98,7 +98,12 @@ export default async function EventPage({ params }: { params: { eventId: string 
           <h1 className="text-2xl font-bold text-stone-900">{event.name}</h1>
           <p className="text-stone-500 text-sm mt-1">{event.eventType} · {event.isPublished ? "Published" : "Draft"}</p>
         </div>
-        <PublishToggle eventId={event.id} isPublished={event.isPublished} />
+        <div className="flex flex-wrap items-center gap-2">
+          <Link href={`/events/${event.id}/edit`} className="inline-flex items-center gap-2 rounded-lg border border-stone-200 bg-white px-4 py-2 text-sm font-semibold text-stone-700 hover:bg-stone-50">
+            <Pencil className="h-4 w-4" /> Edit details
+          </Link>
+          <PublishToggle eventId={event.id} isPublished={event.isPublished} />
+        </div>
       </div>
 
       {/* URLs */}
@@ -212,7 +217,10 @@ export default async function EventPage({ params }: { params: { eventId: string 
 
       {/* Event info */}
       <div className="rounded-xl border border-stone-200 bg-white p-6 space-y-4">
-        <h2 className="font-semibold text-stone-900">Event Details</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="font-semibold text-stone-900">Event Details</h2>
+          <Link href={`/events/${event.id}/edit`} className="text-sm font-semibold text-[#0A2810] hover:underline">Edit</Link>
+        </div>
         <dl className="grid grid-cols-2 gap-4 text-sm">
           {[
             { label: "Date", value: event.date ? formatDate(event.date) : "—" },
